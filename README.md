@@ -202,4 +202,4 @@ PRs welcome. Please follow the TDD workflow above and ensure `make test` passes.
 
 ## License
 
-[MIT](LICENSE) © 2026 brian93512
+[MIT](LICENSE) © 2026 AgentSafe-AI

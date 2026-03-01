@@ -1,0 +1,20 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 60%          # minimum acceptable coverage
+        threshold: 2%        # allow up to 2% drop without failing
+    patch:
+      default:
+        target: 60%
+
+ignore:
+  - "cmd/**"                 # CLI wiring — no unit tests by design
+  - "pkg/sandbox/**"        # interface stub only
+  - "pkg/adapter/openai/**" # not yet implemented
+  - "pkg/adapter/skills/**" # not yet implemented
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: true     # only comment when coverage changes
