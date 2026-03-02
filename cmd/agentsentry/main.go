@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -44,18 +45,21 @@ func newVersionCmd() *cobra.Command {
 	}
 }
 
-// ScanReport is the JSON-serialisable output of the scan command.
+// ScanReport is the JSON output of the scan command.
+// The schema is stable and versioned for ToolTrust Directory compatibility.
 type ScanReport struct {
-	Policies []model.GatewayPolicy `json:"policies"`
-	Summary  ScanSummary           `json:"summary"`
+	SchemaVersion string                `json:"schema_version"`
+	Policies      []model.GatewayPolicy `json:"policies"`
+	Summary       ScanSummary           `json:"summary"`
 }
 
 // ScanSummary gives a high-level overview of the scan result.
 type ScanSummary struct {
-	Total    int `json:"total"`
-	Allowed  int `json:"allowed"`
-	Approval int `json:"requireApproval"`
-	Blocked  int `json:"blocked"`
+	Total           int       `json:"total"`
+	Allowed         int       `json:"allowed"`
+	RequireApproval int       `json:"require_approval"`
+	Blocked         int       `json:"blocked"`
+	ScannedAt       time.Time `json:"scanned_at"`
 }
 
 func newScanCmd() *cobra.Command {
@@ -107,7 +111,7 @@ func runScan(ctx context.Context, inputFile, protocol, outputFile string) error 
 
 	scanner := analyzer.NewScanner()
 	var policies []model.GatewayPolicy
-	summary := ScanSummary{Total: len(tools)}
+	summary := ScanSummary{Total: len(tools), ScannedAt: time.Now().UTC()}
 
 	for i := range tools {
 		score, scanErr := scanner.Scan(ctx, tools[i])
@@ -124,13 +128,17 @@ func runScan(ctx context.Context, inputFile, protocol, outputFile string) error 
 		case model.ActionAllow:
 			summary.Allowed++
 		case model.ActionRequireApproval:
-			summary.Approval++
+			summary.RequireApproval++
 		case model.ActionBlock:
 			summary.Blocked++
 		}
 	}
 
-	report := ScanReport{Policies: policies, Summary: summary}
+	report := ScanReport{
+		SchemaVersion: "1.0",
+		Policies:      policies,
+		Summary:       summary,
+	}
 	encoded, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to encode report: %w", err)

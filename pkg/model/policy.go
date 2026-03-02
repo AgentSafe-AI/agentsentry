@@ -25,17 +25,17 @@ func ActionFromGrade(g Grade) Action {
 
 // RateLimit specifies optional throughput constraints applied to an allowed tool.
 type RateLimit struct {
-	RequestsPerMinute int
-	BurstSize         int
+	RequestsPerMinute int `json:"requests_per_minute"`
+	BurstSize         int `json:"burst_size"`
 }
 
 // GatewayPolicy is the deployment-ready enforcement record for one tool.
 type GatewayPolicy struct {
-	ToolName  string
-	Action    Action
-	RateLimit *RateLimit
-	Reason    string
-	Score     RiskScore
+	ToolName  string     `json:"tool_name"`
+	Action    Action     `json:"action"`
+	RateLimit *RateLimit `json:"rate_limit,omitempty"`
+	Reason    string     `json:"reason,omitempty"`
+	Score     RiskScore  `json:"score"`
 }
 
 // NewGatewayPolicy constructs a GatewayPolicy from a tool name and its RiskScore.

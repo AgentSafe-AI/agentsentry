@@ -9,20 +9,29 @@
 
 **The security trust layer for MCP servers, OpenAI tools, and AI Skills.**
 
-AgentSentry scans tool definitions *before* an AI agent runs them — blocking prompt injection, over-permission, scope mismatches, and known CVEs at the source.
+AI agents blindly trust the tools they call. A single poisoned tool definition can hijack an agent, exfiltrate data, or silently escalate privileges. AgentSentry intercepts tool definitions *before* execution and blocks threats at the source.
 
 ---
 
 ## Scan catalog
 
-| Rule | ID | Purpose |
-|------|----|---------|
-| 🛡️ **Tool Poisoning** | AS-001 | Detect prompt injection hidden in tool descriptions (`ignore previous instructions`, `system:`, `<INST>`) |
-| 🔑 **Permission Surface** | AS-002 | Flag tools declaring `exec`, `network`, `db`, or `fs` beyond their stated purpose; detect over-broad input schemas |
-| 📐 **Scope Mismatch** | AS-003 | Catch name vs. permission contradictions (`read_config` + `exec` permission) |
-| 📦 **Supply Chain (CVE)** | AS-004 | Query the [OSV API](https://osv.dev) for known vulnerabilities in a tool's declared dependencies |
+| Rule | ID | Solves |
+|------|----|--------|
+| 🛡️ **Tool Poisoning** | AS-001 | Agents manipulated by malicious instructions hidden in tool descriptions (`ignore previous instructions`, `system:`, `<INST>`) |
+| 🔑 **Permission Surface** | AS-002 | Tools declaring `exec`, `network`, `db`, or `fs` far beyond their stated purpose — or exposing an unnecessarily broad input schema |
+| 📐 **Scope Mismatch** | AS-003 | Tool names that contradict their permissions, confusing the agent about what a tool actually does (`read_config` secretly holding `exec`) |
+| 📦 **Supply Chain (CVE)** | AS-004 | Third-party libraries bundled by a tool that carry known CVE vulnerabilities — queried live from the [OSV database](https://osv.dev) |
 
 ## Risk grades
+
+$$\text{RiskScore} = \sum_{i=1}^{n} \left( \text{SeverityWeight}_i \times \text{FindingCount}_i \right)$$
+
+| Weight | Severity | Example trigger |
+|--------|----------|-----------------|
+| **25** | CRITICAL | Prompt injection (AS-001) |
+| **15** | HIGH | `exec` / `network` permission (AS-002), scope mismatch (AS-003) |
+| **8** | MEDIUM | Minor scope issues |
+| **3** | LOW | Over-broad schema (AS-002) |
 
 | Grade | Score | Gateway action |
 |-------|-------|----------------|
@@ -32,30 +41,27 @@ AgentSentry scans tool definitions *before* an AI agent runs them — blocking p
 | **D** | 51–75 | `REQUIRE_APPROVAL` |
 | **F** | 76+ | `BLOCK` |
 
-Score = `Σ (weight × findings)` — weights: Critical **25** · High **15** · Medium **8** · Low **3**
-
 ---
 
 ## Quick integration
 
 **CLI**
 ```bash
-# install (macOS / Linux — auto-detects arch)
 curl -L https://github.com/AgentSafe-AI/agentsentry/releases/latest/download/agentsentry_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed s/x86_64/amd64/) \
   -o /usr/local/bin/agentsentry && chmod +x /usr/local/bin/agentsentry
 
 agentsentry scan --protocol mcp --input tools.json
 ```
 
-**GitHub Actions** — add one step to your CI:
+**GitHub Actions**
 ```yaml
 - name: AgentSentry scan
-  run: agentsentry scan --protocol mcp --input testdata/tools.json --fail-on block
+  run: agentsentry scan --protocol mcp --input testdata/tools.json
 ```
 
 **MCP meta-scanner** — let Claude scan tools for you:
 ```bash
-agentsentry-mcp   # stdio transport, exposes agentsentry_scan to any MCP client
+agentsentry-mcp   # stdio, exposes agentsentry_scan to any MCP client
 ```
 
 **Docker**
@@ -66,70 +72,47 @@ docker run --rm -v $(pwd)/tools.json:/tools.json \
 
 ---
 
-## Example output
+## Output (ToolTrust Directory schema v1.0)
 
 ```json
 {
+  "schema_version": "1.0",
   "policies": [
     {
-      "ToolName": "run_shell",
-      "Action": "BLOCK",
-      "Score": {
-        "Score": 80, "Grade": "F",
-        "Issues": [
-          { "RuleID": "AS-001", "Severity": "CRITICAL", "Code": "TOOL_POISONING" },
-          { "RuleID": "AS-002", "Severity": "HIGH",     "Code": "HIGH_RISK_PERMISSION" },
-          { "RuleID": "AS-004", "Severity": "CRITICAL", "Code": "SUPPLY_CHAIN_CVE",
-            "Description": "CVE-2024-1234 in lodash@4.17.15: Prototype pollution" }
+      "tool_name": "run_shell",
+      "action": "BLOCK",
+      "score": {
+        "risk_score": 80,
+        "grade": "F",
+        "findings": [
+          { "rule_id": "AS-001", "severity": "CRITICAL", "code": "TOOL_POISONING",
+            "description": "possible prompt injection: pattern matched ignore.*instructions",
+            "location": "description" },
+          { "rule_id": "AS-002", "severity": "HIGH", "code": "HIGH_RISK_PERMISSION",
+            "location": "permissions" },
+          { "rule_id": "AS-004", "severity": "CRITICAL", "code": "SUPPLY_CHAIN_CVE",
+            "description": "CVE-2024-1234 in lodash@4.17.15: Prototype pollution" }
         ]
       }
     }
   ],
-  "summary": { "total": 3, "allowed": 1, "requireApproval": 1, "blocked": 1 }
+  "summary": {
+    "total": 3, "allowed": 1, "require_approval": 1, "blocked": 1,
+    "scanned_at": "2026-02-27T10:00:00Z"
+  }
 }
 ```
-
----
-
-## Architecture
-
-```
-pkg/adapter/    Protocol converters → UnifiedTool  (MCP · OpenAI · Skills · A2A)
-pkg/analyzer/   Scan rules AS-001–AS-004, Engine API, weighted scoring
-pkg/gateway/    RiskScore → GatewayPolicy  (ALLOW · REQUIRE_APPROVAL · BLOCK)
-pkg/model/      Core types: UnifiedTool · RiskScore · GatewayPolicy
-pkg/storage/    SQLite persistence for scan results (modernc.org/sqlite, no CGo)
-cmd/agentsentry/ CLI entry point
-cmd/mcpserver/  MCP meta-scanner server
-```
-
-## Development
-
-```bash
-make test           # race detector — must pass before every commit
-make lint           # golangci-lint
-make coverage       # ≥60% enforced on pkg/ + internal/
-make cross-compile  # linux · darwin · windows binaries in dist/
-```
-
-TDD workflow: RED → GREEN → REFACTOR. See [`.cursor/skills/tdd-go/SKILL.md`](.cursor/skills/tdd-go/SKILL.md).
 
 ---
 
 ## Roadmap
 
 - **v0.2** — OpenAI Function Calling · Markdown Skills · A2A adapters
-- **v0.3** — REST API · certified JSON/PDF reports · ToolTrust Directory sync
+- **v0.3** — REST API · ToolTrust Directory sync · certified reports
 - **v0.4** — K8s + gVisor sandbox for dynamic behavioural analysis
-- **v0.5** — MCP/Skills Security Directory (public website, searchable by grade)
+- **v0.5** — Public MCP/Skills Security Directory (searchable by grade)
 - **v1.0** — Browser extension · webhook gateway · signed scan certificates
 
 ---
 
-## Contributing
-
-PRs welcome — run `make test` first.
-
-## License
-
-[MIT](LICENSE) © 2026 AgentSafe-AI
+[Developer guide](docs/DEVELOPER.md) · [License: MIT](LICENSE) © 2026 AgentSafe-AI

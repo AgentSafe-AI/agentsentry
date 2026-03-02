@@ -40,18 +40,18 @@ func GradeFromScore(score int) Grade {
 
 // Issue describes a single risk finding detected during analysis.
 type Issue struct {
-	RuleID      string // unique rule identifier, e.g. "AS-001"
-	Severity    Severity
-	Code        string // e.g. "TOOL_POISONING", "SCOPE_MISMATCH"
-	Description string
-	Location    string
+	RuleID      string   `json:"rule_id"` // unique rule identifier, e.g. "AS-001"
+	Severity    Severity `json:"severity"`
+	Code        string   `json:"code"` // e.g. "TOOL_POISONING", "SCOPE_MISMATCH"
+	Description string   `json:"description,omitempty"`
+	Location    string   `json:"location,omitempty"`
 }
 
 // RiskScore is the aggregated result of running all analyzers on a UnifiedTool.
 type RiskScore struct {
-	Score  int
-	Grade  Grade
-	Issues []Issue
+	Score  int     `json:"risk_score"`
+	Grade  Grade   `json:"grade"`
+	Issues []Issue `json:"findings"`
 }
 
 // NewRiskScore constructs a RiskScore, automatically deriving the Grade.
