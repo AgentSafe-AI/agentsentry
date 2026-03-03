@@ -13,9 +13,9 @@ import (
 	"github.com/AgentSafe-AI/agentsentry/pkg/analyzer"
 	"github.com/AgentSafe-AI/agentsentry/pkg/gateway"
 	"github.com/AgentSafe-AI/agentsentry/pkg/model"
+	"github.com/AgentSafe-AI/agentsentry/pkg/storage"
 )
 
-// version is set at build time via -ldflags.
 var version = "dev"
 
 func main() {
@@ -28,7 +28,7 @@ func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "agentsentry",
 		Short: "AI Agent Tool Security Scanner",
-		Long:  "AgentSafe scans AI agent tool definitions for security risks and generates gateway policies.",
+		Long:  "AgentSentry scans AI agent tool definitions for security risks and generates gateway policies.",
 	}
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(newScanCmd())
@@ -38,22 +38,21 @@ func newRootCmd() *cobra.Command {
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the AgentSafe version",
+		Short: "Print the AgentSentry version",
 		Run: func(_ *cobra.Command, _ []string) {
 			fmt.Println("agentsentry", version)
 		},
 	}
 }
 
-// ScanReport is the JSON output of the scan command.
-// The schema is stable and versioned for ToolTrust Directory compatibility.
+// ScanReport is the JSON output conforming to ToolTrust Directory schema v1.0.
 type ScanReport struct {
 	SchemaVersion string                `json:"schema_version"`
 	Policies      []model.GatewayPolicy `json:"policies"`
 	Summary       ScanSummary           `json:"summary"`
 }
 
-// ScanSummary gives a high-level overview of the scan result.
+// ScanSummary provides aggregate scan counts.
 type ScanSummary struct {
 	Total           int       `json:"total"`
 	Allowed         int       `json:"allowed"`
@@ -67,38 +66,57 @@ func newScanCmd() *cobra.Command {
 		inputFile  string
 		protocol   string
 		outputFile string
+		failOn     string
+		dbPath     string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "scan",
 		Short: "Scan tool definitions and generate gateway policies",
 		Example: `  agentsentry scan --protocol mcp --input tools.json
-  agentsentry scan --protocol mcp --input tools.json --output report.json`,
+  agentsentry scan --protocol mcp --input tools.json --output report.json
+  agentsentry scan --protocol mcp --input tools.json --fail-on block
+  agentsentry scan --protocol mcp --input tools.json --db scans.db`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runScan(cmd.Context(), inputFile, protocol, outputFile)
+			return runScan(cmd.Context(), scanOpts{
+				inputFile:  inputFile,
+				protocol:   protocol,
+				outputFile: outputFile,
+				failOn:     failOn,
+				dbPath:     dbPath,
+			})
 		},
 	}
 
 	cmd.Flags().StringVarP(&inputFile, "input", "i", "", "path to tool definition file (required)")
 	cmd.Flags().StringVarP(&protocol, "protocol", "p", "mcp", "protocol format: mcp | openai | skills")
 	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "write JSON report to file (default: stdout)")
+	cmd.Flags().StringVar(&failOn, "fail-on", "", "exit non-zero if any tool reaches this action: allow | approval | block")
+	cmd.Flags().StringVar(&dbPath, "db", "", "persist scan results to SQLite database at this path")
 	if err := cmd.MarkFlagRequired("input"); err != nil {
-		// Only fails when the flag name is wrong — this is a programming error.
 		panic(err)
 	}
 
 	return cmd
 }
 
-func runScan(ctx context.Context, inputFile, protocol, outputFile string) error {
-	data, err := os.ReadFile(inputFile)
+type scanOpts struct {
+	inputFile  string
+	protocol   string
+	outputFile string
+	failOn     string
+	dbPath     string
+}
+
+func runScan(ctx context.Context, opts scanOpts) error {
+	data, err := os.ReadFile(opts.inputFile)
 	if err != nil {
 		return fmt.Errorf("cannot read input file: %w", err)
 	}
 
 	var tools []model.UnifiedTool
 
-	switch protocol {
+	switch opts.protocol {
 	case "mcp":
 		a := mcp.NewAdapter()
 		tools, err = a.Parse(ctx, data)
@@ -106,7 +124,7 @@ func runScan(ctx context.Context, inputFile, protocol, outputFile string) error 
 			return fmt.Errorf("parse error: %w", err)
 		}
 	default:
-		return fmt.Errorf("unsupported protocol %q (supported: mcp)", protocol)
+		return fmt.Errorf("unsupported protocol %q (supported: mcp)", opts.protocol)
 	}
 
 	scanner := analyzer.NewScanner()
@@ -139,19 +157,78 @@ func runScan(ctx context.Context, inputFile, protocol, outputFile string) error 
 		Policies:      policies,
 		Summary:       summary,
 	}
+
+	if opts.dbPath != "" {
+		if persistErr := persistResults(ctx, opts.dbPath, tools, policies); persistErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to persist results: %v\n", persistErr)
+		}
+	}
+
 	encoded, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to encode report: %w", err)
 	}
 
-	if outputFile != "" {
-		if err := os.WriteFile(outputFile, encoded, 0o644); err != nil {
-			return fmt.Errorf("failed to write output file: %w", err)
+	if opts.outputFile != "" {
+		if writeErr := os.WriteFile(opts.outputFile, encoded, 0o644); writeErr != nil {
+			return fmt.Errorf("failed to write output file: %w", writeErr)
 		}
-		fmt.Fprintf(os.Stderr, "report written to %s\n", outputFile)
-		return nil
+		fmt.Fprintf(os.Stderr, "report written to %s\n", opts.outputFile)
+	} else {
+		fmt.Println(string(encoded))
 	}
 
-	fmt.Println(string(encoded))
+	return checkFailOn(opts.failOn, summary)
+}
+
+func checkFailOn(failOn string, summary ScanSummary) error {
+	if failOn == "" {
+		return nil
+	}
+	switch failOn {
+	case "block":
+		if summary.Blocked > 0 {
+			return fmt.Errorf("scan failed: %d tool(s) BLOCKED", summary.Blocked)
+		}
+	case "approval":
+		if summary.RequireApproval > 0 || summary.Blocked > 0 {
+			return fmt.Errorf("scan failed: %d tool(s) require approval, %d blocked", summary.RequireApproval, summary.Blocked)
+		}
+	case "allow":
+		if summary.RequireApproval > 0 || summary.Blocked > 0 {
+			return fmt.Errorf("scan failed: only %d of %d tool(s) are fully allowed", summary.Allowed, summary.Total)
+		}
+	default:
+		return fmt.Errorf("invalid --fail-on value %q (use: allow | approval | block)", failOn)
+	}
+	return nil
+}
+
+func persistResults(ctx context.Context, dbPath string, tools []model.UnifiedTool, policies []model.GatewayPolicy) error {
+	store, err := storage.OpenContext(ctx, dbPath)
+	if err != nil {
+		return fmt.Errorf("persist: %w", err)
+	}
+	defer func() {
+		if closeErr := store.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: db close: %v\n", closeErr)
+		}
+	}()
+
+	for i, policy := range policies {
+		rec := storage.ScanRecord{
+			ID:        fmt.Sprintf("%s-%d", tools[i].Name, time.Now().UnixNano()),
+			ToolName:  policy.ToolName,
+			Protocol:  tools[i].Protocol,
+			RiskScore: policy.Score.Score,
+			Grade:     policy.Score.Grade,
+			Findings:  policy.Score.Issues,
+			ScannedAt: time.Now().UTC(),
+		}
+		if saveErr := store.Save(ctx, rec); saveErr != nil {
+			return fmt.Errorf("persist: save %q: %w", rec.ToolName, saveErr)
+		}
+	}
+	fmt.Fprintf(os.Stderr, "persisted %d scan result(s) to %s\n", len(policies), dbPath)
 	return nil
 }

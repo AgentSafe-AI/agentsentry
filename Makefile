@@ -117,13 +117,9 @@ docker-push: docker-build
 
 # ── AgentSentry Self-Scan ───────────────────────────────────────────────────────
 
-## scan: run AgentSentry against testdata/tools.json (if present)
+## scan: run AgentSentry against testdata/tools.json and fail on blocked tools
 scan: build-cli
-	@if [ -f testdata/tools.json ]; then \
-		$(BUILD_DIR)/$(BINARY_CLI) scan --protocol mcp --input testdata/tools.json; \
-	else \
-		echo "No testdata/tools.json found — skipping scan"; \
-	fi
+	$(BUILD_DIR)/$(BINARY_CLI) scan --protocol mcp --input testdata/tools.json --fail-on block
 
 # ── Misc ──────────────────────────────────────────────────────────────────────
 

@@ -49,11 +49,15 @@ type Store struct {
 // Open opens (or creates) a SQLite database at dsn and runs the schema
 // migration.  Use ":memory:" for tests.
 func Open(dsn string) (*Store, error) {
+	return OpenContext(context.Background(), dsn)
+}
+
+// OpenContext is like Open but accepts an explicit context for the schema migration.
+func OpenContext(ctx context.Context, dsn string) (*Store, error) {
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("storage: open db: %w", err)
 	}
-	ctx := context.Background()
 	if _, err = db.ExecContext(ctx, schema); err != nil {
 		if closeErr := db.Close(); closeErr != nil {
 			return nil, fmt.Errorf("storage: migrate schema: %w (also failed to close: %v)", err, closeErr)

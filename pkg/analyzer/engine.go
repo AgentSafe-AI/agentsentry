@@ -37,10 +37,13 @@ type Engine struct {
 }
 
 // NewEngine returns an Engine pre-wired with all default checkers:
-//   - AS-001  PromptInjectionAnalyzer  (PoisoningChecker)
-//   - AS-002  HighRiskPermission       (PermissionChecker — risky perms)
-//   - AS-003  LargeInputSurface        (PermissionChecker — schema size)
-//   - AS-004  ScopeMismatch            (ScopeChecker)
+//   - AS-001  Tool Poisoning           (PoisoningChecker)
+//   - AS-002  Permission Surface       (PermissionChecker)
+//   - AS-003  Scope Mismatch           (ScopeChecker)
+//   - AS-004  Supply Chain CVE         (SupplyChainChecker)
+//   - AS-005  Privilege Escalation     (PrivilegeEscalationChecker)
+//   - AS-010  Secret Handling          (SecretHandlingChecker)
+//   - AS-011  DoS Resilience           (DoSResilienceChecker)
 func NewEngine() *Engine {
 	return &Engine{scanner: NewScanner()}
 }

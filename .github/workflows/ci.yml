@@ -130,50 +130,23 @@ jobs:
       - name: Build agentsentry binary
         run: go build -o /tmp/agentsentry ./cmd/agentsentry/
 
-      - name: Create sample MCP tools fixture
+      - name: Run AgentSentry self-scan (testdata fixture)
         run: |
-          cat > /tmp/ci_tools.json << 'EOF'
-          {
-            "tools": [
-              {
-                "name": "read_file",
-                "description": "Read the contents of a file from the filesystem.",
-                "inputSchema": {
-                  "type": "object",
-                  "properties": {
-                    "path": { "type": "string", "description": "absolute file path" }
-                  },
-                  "required": ["path"]
-                }
-              },
-              {
-                "name": "fetch_url",
-                "description": "Fetch the content of a remote URL.",
-                "inputSchema": {
-                  "type": "object",
-                  "properties": {
-                    "url": { "type": "string" }
-                  }
-                }
-              }
-            ]
-          }
-          EOF
-
-      - name: Run AgentSentry scan
-        run: |
-          /tmp/agentsentry scan --protocol mcp --input /tmp/ci_tools.json --output /tmp/scan_report.json
+          /tmp/agentsentry scan \
+            --protocol mcp \
+            --input testdata/tools.json \
+            --output /tmp/scan_report.json
           cat /tmp/scan_report.json
 
-      - name: Fail if any tool is BLOCKED
+      - name: Validate --fail-on flag (must not BLOCK safe tools)
         run: |
-          BLOCKED=$(jq '.summary.blocked' /tmp/scan_report.json)
-          echo "Blocked tools: $BLOCKED"
-          if [ "$BLOCKED" -gt "0" ]; then
-            echo "AgentSentry self-scan found $BLOCKED BLOCKED tool(s) — review the scan report."
-            cat /tmp/scan_report.json
+          /tmp/agentsentry scan \
+            --protocol mcp \
+            --input testdata/tools.json \
+            --fail-on block || {
+            echo "::error::AgentSentry self-scan found BLOCKED tool(s) in testdata/tools.json"
             exit 1
-          fi
+          }
 
       - name: Upload scan report
         uses: actions/upload-artifact@v4

@@ -56,12 +56,14 @@ curl -L https://github.com/AgentSafe-AI/agentsentry/releases/latest/download/age
   -o /usr/local/bin/agentsentry && chmod +x /usr/local/bin/agentsentry
 
 agentsentry scan --protocol mcp --input tools.json
+agentsentry scan --protocol mcp --input tools.json --fail-on block   # CI gate
+agentsentry scan --protocol mcp --input tools.json --db scans.db     # persist history
 ```
 
 **GitHub Actions**
 ```yaml
 - name: AgentSentry scan
-  run: agentsentry scan --protocol mcp --input testdata/tools.json
+  run: agentsentry scan --protocol mcp --input tools.json --fail-on block
 ```
 
 **MCP meta-scanner** — let Claude scan tools for you:

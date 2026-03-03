@@ -28,7 +28,10 @@ github.com/AgentSafe-AI/agentsentry
 │   │   ├── poisoning.go AS-001 Tool Poisoning
 │   │   ├── permission.go AS-002 Permission Surface
 │   │   ├── scope.go     AS-003 Scope Mismatch
-│   │   └── supply_chain.go AS-004 Supply Chain CVE (OSV API)
+│   │   ├── supply_chain.go AS-004 Supply Chain CVE (OSV API)
+│   │   ├── privilege.go AS-005 Privilege Escalation
+│   │   ├── secrets.go   AS-010 Secret Handling
+│   │   └── dos.go       AS-011 DoS Resilience
 │   │
 │   ├── gateway/         RiskScore → GatewayPolicy mapper
 │   ├── model/           Core types: UnifiedTool · RiskScore · GatewayPolicy
@@ -37,6 +40,9 @@ github.com/AgentSafe-AI/agentsentry
 │
 ├── internal/
 │   └── jsonschema/      Minimal JSON Schema helpers
+│
+├── testdata/
+│   └── tools.json       Sample MCP fixture for E2E testing
 │
 ├── .github/workflows/   CI · Release · Security (govulncheck, gosec)
 ├── .cursor/skills/      TDD red-green-refactor skill
@@ -80,7 +86,7 @@ Full guide: [`.cursor/skills/tdd-go/SKILL.md`](../.cursor/skills/tdd-go/SKILL.md
        Check(tool model.UnifiedTool) ([]model.Issue, error)
    }
    ```
-2. Assign the next available rule ID (e.g. `AS-005`) in each `model.Issue` you return.
+2. Assign the next available rule ID (e.g. `AS-006`) in each `model.Issue` you return.
 3. Register the checker in `NewScanner()` inside `pkg/analyzer/analyzer.go`.
 4. Write `pkg/analyzer/<rule>_test.go` — start with the failing test (RED).
 5. Update the [Scan catalog](../README.md#scan-catalog) in `README.md`.
