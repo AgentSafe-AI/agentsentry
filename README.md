@@ -57,6 +57,15 @@ $$\text{RiskScore} = \sum_{i=1}^{n} \left( \text{SeverityWeight}_i \times \text{
 curl -fsSL https://raw.githubusercontent.com/AgentSafe-AI/tooltrust-scanner/main/install.sh | bash
 ```
 
+### 🤖 For CI/CD (Version Pinning)
+
+To ensure pipeline stability, it is highly recommended to pin a specific version of ToolTrust Scanner:
+
+```bash
+# Install a specific version (e.g., v1.0.0)
+curl -fsSL https://raw.githubusercontent.com/AgentSafe-AI/tooltrust-scanner/main/install.sh | bash -s -- v1.0.0
+```
+
 **Run your first scan:**
 ```bash
 tooltrust scan --input tools.json
