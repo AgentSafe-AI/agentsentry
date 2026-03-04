@@ -15,9 +15,7 @@ class TooltrustScanner < Formula
   depends_on "go" => :build
 
   def install
-    cd "tooltrust-scanner-#{version}" do
-      system "go", "build", *std_go_args(ldflags: "-s -w -X main.version=#{version}"), "./cmd/tooltrust-scanner"
-    end
+    system "go", "build", *std_go_args(ldflags: "-s -w -X main.version=#{version}"), "./cmd/tooltrust-scanner"
   end
 
   test do
