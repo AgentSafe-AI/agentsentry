@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go Version](https://img.shields.io/badge/go-1.24-00ADD8.svg)](go.mod)
 
-**The security trust layer for MCP servers, OpenAI tools, and AI Skills.**
+**The security scanner for AI agent tool definitions.**
 
 AI agents blindly trust the tools they call. A single poisoned tool definition can hijack an agent, exfiltrate data, or silently escalate privileges. ToolTrust Scanner intercepts tool definitions *before* execution and blocks threats at the source.
 
@@ -109,7 +109,7 @@ tooltrust scan --input tools.json
 
 ## Roadmap
 
-- **v0.2** — OpenAI Function Calling · Markdown Skills · A2A adapters
+- **v0.2** — Additional protocol adapters (OpenAI Functions, Markdown Skills, A2A)
 - **v0.3** — REST API · ToolTrust Directory sync · certified reports
 - **v0.4** — K8s + gVisor sandbox for dynamic behavioural analysis
 - **v0.5** — Public MCP/Skills Security Directory (searchable by grade)
