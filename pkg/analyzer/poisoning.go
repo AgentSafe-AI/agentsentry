@@ -9,9 +9,8 @@ import (
 
 // injectionPatterns are compiled regexes that signal prompt injection attempts.
 var injectionPatterns = []*regexp.Regexp{
-	// "ignore previous instructions", "ignore all previous instructions", "ignore all instructions"
-	regexp.MustCompile(`(?i)ignore\s+(?:all\s+)?(?:previous\s+|prior\s+)?(instructions?|prompts?|context|rules?)`),
-	regexp.MustCompile(`(?i)disregard\s+(your|all|previous|prior)?\s*(instructions?|context|rules?)`),
+	// "ignore previous instructions", "disregard your instructions", "bypass filters"
+	regexp.MustCompile(`(?i)(ignore|disregard|bypass)\s+(?:(?:your|all|previous|prior|any)\s+)*(instructions?|prompts?|context|rules?|guidelines?|restrictions?|filters?)`),
 	regexp.MustCompile(`(?i)system\s*:`),
 	regexp.MustCompile(`(?i)<\s*INST\s*>`),
 	regexp.MustCompile(`(?i)\[INST\]`),
@@ -19,7 +18,12 @@ var injectionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)forget\s+(your|all|previous)\s+(instructions?|context|rules?|training)`),
 	regexp.MustCompile(`(?i)you\s+(are\s+now|must\s+now|will\s+now)\s+(act|behave|operate)`),
 	regexp.MustCompile(`(?i)exfiltrate`),
-	regexp.MustCompile(`(?i)developer\s+mode`),
+	// Jailbreak / Privilege escalation
+	regexp.MustCompile(`(?i)(developer|unrestricted)\s+mode`),
+	regexp.MustCompile(`(?i)full\s+system\s+access`),
+	regexp.MustCompile(`(?i)jailbreak`),
+	// Data Exfiltration
+	regexp.MustCompile(`(?i)send.*(history|data|conversation).*to.*(http|url)`),
 }
 
 // PoisoningChecker inspects a tool's description for prompt injection signals.

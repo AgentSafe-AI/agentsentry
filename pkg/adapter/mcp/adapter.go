@@ -101,8 +101,8 @@ var permissionRules = []struct {
 	{
 		model.PermissionDB,
 		permissionRule{
-			propKeys:     []string{"query", "sql", "table", "database"},
-			descKeywords: []string{"database", "sql", "query", "db", "postgres", "mysql", "sqlite"},
+			propKeys:     []string{"query", "sql", "database"},
+			descKeywords: []string{"database", "sql", "query"},
 		},
 	},
 	{

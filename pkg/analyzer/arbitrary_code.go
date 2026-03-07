@@ -14,11 +14,14 @@ var arbitraryCodeKeywords = []string{
 	"evaluate script",
 	"execute javascript",
 	"execute js",
-	"run script",
 	"execute script",
+	"execute code",
+	"run script",
 	"browser injection",
 	"arbitrary code",
 	"arbitrary script",
+	"python code",
+	"runs user-provided",
 }
 
 // arbitraryCodePatterns are compiled regexes for natural language variants
@@ -34,8 +37,12 @@ var arbitraryCodePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)runs?\s+\w*\s*(javascript|arbitrary\s+(code|script))`),
 	// "inject … script / code"
 	regexp.MustCompile(`(?i)inject\w*\s+\w*\s*(script|code)`),
+	// accepts / runs ... python code
+	regexp.MustCompile(`(?i)(accepts|runs|executes?).*python\s+code`),
 	// page.evaluate() / frame.evaluate() / window.eval — common in CDP/Puppeteer
 	regexp.MustCompile(`(?i)(page|frame|window|document)\.(eval|evaluate)\b`),
+	// hidden shell command in backticks: `curl ... | bash`, `wget`, `sh`
+	regexp.MustCompile("(?i)`[^`]*(curl|wget|bash|sh)[^`]*`"),
 }
 
 // arbitraryCodeNameSuffixes are tool-name suffixes that strongly signal JS
