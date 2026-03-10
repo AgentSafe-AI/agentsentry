@@ -5,11 +5,14 @@
 [![codecov](https://codecov.io/gh/AgentSafe-AI/tooltrust-scanner/branch/main/graph/badge.svg)](https://codecov.io/gh/AgentSafe-AI/tooltrust-scanner)
 [![Go Report Card](https://goreportcard.com/badge/github.com/AgentSafe-AI/tooltrust-scanner)](https://goreportcard.com/report/github.com/AgentSafe-AI/tooltrust-scanner)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/go-1.24-00ADD8.svg)](go.mod)
+[![Go Version](https://img.shields.io/badge/go-1.26-00ADD8.svg)](go.mod)
 
-**The security scanner for AI agent tool definitions.**
+**The fast, static heuristic linter for AI agent tool definitions.**
 
 AI agents blindly trust the tools they call. A single poisoned tool definition can hijack an agent, exfiltrate data, or silently escalate privileges. ToolTrust Scanner intercepts tool definitions *before* execution and blocks threats at the source.
+
+> [!NOTE]
+> ToolTrust is a fast, static heuristic linter for MCP servers. It is not a replacement for a deep, manual security audit. It catches low-hanging fruit like supply chain CVEs and obvious prompt injection patterns.
 
 **Used by** — [ToolTrust Directory](https://github.com/AgentSafe-AI/tooltrust-directory): 100+ MCP servers and AI tools with verified A–F security grades.
 
@@ -56,6 +59,19 @@ $$\text{RiskScore} = \sum_{i=1}^{n} \left( \text{SeverityWeight}_i \times \text{
 **Install via automated script (macOS / Linux):**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AgentSafe-AI/tooltrust-scanner/main/install.sh | bash
+```
+
+### 🤝 GitHub Actions Integration (Zero-Config)
+
+You can easily integrate ToolTrust Scanner into your CI/CD pipelines as a composite action. It supports mutually exclusive `server` and `input` parameters.
+
+```yaml
+# Add this to your .github/workflows/security.yml
+- name: Audit MCP Server
+  uses: AgentSafe-AI/tooltrust-scanner@main
+  with:
+    server: "npx -y @modelcontextprotocol/server-filesystem /tmp"
+    fail-on: "approval" # Fails CI if grade is C, D, or F
 ```
 
 ### 🤖 For CI/CD (Version Pinning)

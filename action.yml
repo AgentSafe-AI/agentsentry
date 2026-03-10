@@ -1,0 +1,43 @@
+name: 'ToolTrust MCP Security Scanner'
+description: 'Scan AI Agent MCP tools for prompt injections, risky permissions, and vulnerabilities.'
+author: 'AgentSafe-AI'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  server:
+    description: 'The live MCP server command to scan (e.g., "npx -y @modelcontextprotocol/server-filesystem /tmp"). Mutually exclusive with input.'
+    required: false
+  input:
+    description: 'The path to a local tools.json file (mutually exclusive with server).'
+    required: false
+  fail-on:
+    description: 'The grade threshold to fail the CI. (allow | approval | block). Default is "approval" (fails on C, D, F).'
+    required: false
+    default: 'approval'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install ToolTrust Scanner
+      shell: bash
+      run: |
+        curl -fsSL https://raw.githubusercontent.com/AgentSafe-AI/tooltrust-scanner/main/install.sh | sudo bash
+
+    - name: Run ToolTrust Scanner
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.server }}" ] && [ -n "${{ inputs.input }}" ]; then
+          echo "::error::Inputs 'server' and 'input' are mutually exclusive. Please provide exactly one."
+          exit 1
+        fi
+        
+        if [ -n "${{ inputs.server }}" ]; then
+          tooltrust scan --server "${{ inputs.server }}" --fail-on "${{ inputs.fail-on }}"
+        elif [ -n "${{ inputs.input }}" ]; then
+          tooltrust scan --input "${{ inputs.input }}" --fail-on "${{ inputs.fail-on }}"
+        else
+          echo "::error::Either 'server' or 'input' must be provided."
+          exit 1
+        fi
