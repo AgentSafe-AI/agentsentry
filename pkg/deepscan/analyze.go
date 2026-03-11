@@ -62,13 +62,21 @@ func Analyze(text string) (score int, found bool) {
 }
 
 // GetEmbedding tokenizes the text, runs it through the ONNX model, and returns the mean-pooled vector.
-func GetEmbedding(text string) ([]float32, error) {
+// Any CGO/ONNX panics are recovered and returned as errors to prevent the CLI from crashing.
+func GetEmbedding(text string) (embedding []float32, err error) {
+	// Recover from any unexpected CGO or ONNX runtime panics.
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("ONNX inference panic (recovered): %v", r)
+		}
+	}()
+
 	InferenceMutex.Lock()
 	defer InferenceMutex.Unlock()
 
-	enc, err := onnxTokenizer.EncodeSingle(text)
-	if err != nil {
-		return nil, fmt.Errorf("tokenizer error: %w", err)
+	enc, encErr := onnxTokenizer.EncodeSingle(text)
+	if encErr != nil {
+		return nil, fmt.Errorf("tokenizer error: %w", encErr)
 	}
 
 	maxLen := 128
@@ -102,13 +110,13 @@ func GetEmbedding(text string) ([]float32, error) {
 
 	// Process output shape [1, 128, 384] iteratively into a mean-pooled 384d vector.
 	data := OutHiddenState.GetData()
-	embedding := make([]float32, 384)
+	result := make([]float32, 384)
 	var validTokens float32
 
 	for i := 0; i < maxLen; i++ {
 		if attMask[i] == 1 {
 			for j := 0; j < 384; j++ {
-				embedding[j] += data[i*384+j]
+				result[j] += data[i*384+j]
 			}
 			validTokens++
 		}
@@ -116,11 +124,11 @@ func GetEmbedding(text string) ([]float32, error) {
 
 	if validTokens > 0 {
 		for j := 0; j < 384; j++ {
-			embedding[j] /= validTokens
+			result[j] /= validTokens
 		}
 	}
 
-	return embedding, nil
+	return result, nil
 }
 
 // cosineSimilarity calculates the dot product divided by the product of magnitudes.
