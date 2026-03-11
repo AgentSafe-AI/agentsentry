@@ -17,7 +17,7 @@ func TestArbitraryCodeChecker_EvaluateScriptInName(t *testing.T) {
 		Name:        "evaluate_script",
 		Description: "Evaluates a script in the browser context.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"), "evaluate_script in name must trigger AS-006")
 	assert.GreaterOrEqual(t, report.RiskScore, 25, "must score >= 25 (CRITICAL) to prevent A/S grade")
 }
@@ -27,7 +27,7 @@ func TestArbitraryCodeChecker_ExecuteJavascriptInDescription(t *testing.T) {
 		Name:        "run_in_browser",
 		Description: "Execute JavaScript in the page context.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"))
 }
 
@@ -36,7 +36,7 @@ func TestArbitraryCodeChecker_BrowserInjection(t *testing.T) {
 		Name:        "inject_script",
 		Description: "Browser injection of arbitrary code into the target page.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"))
 }
 
@@ -45,7 +45,7 @@ func TestArbitraryCodeChecker_RunScriptInName(t *testing.T) {
 		Name:        "run_script",
 		Description: "Runs a user-provided script.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"))
 }
 
@@ -54,7 +54,7 @@ func TestArbitraryCodeChecker_EvalInDescription(t *testing.T) {
 		Name:        "compute",
 		Description: "Uses eval() to evaluate expressions.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"))
 }
 
@@ -63,7 +63,7 @@ func TestArbitraryCodeChecker_CleanTool_NoFinding(t *testing.T) {
 		Name:        "list_files",
 		Description: "Returns a list of files in the directory.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.False(t, report.HasFinding("AS-006"))
 }
 
@@ -73,7 +73,7 @@ func TestArbitraryCodeChecker_Retrieval_NoFalsePositive(t *testing.T) {
 		Name:        "document_retrieval",
 		Description: "Retrieval of documents from the index.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.False(t, report.HasFinding("AS-006"))
 }
 
@@ -83,7 +83,7 @@ func TestArbitraryCodeChecker_GradeCOrWorse(t *testing.T) {
 		Name:        "evaluate_script",
 		Description: "Evaluates JavaScript expression in the browser.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"))
 	assert.Contains(t, []model.Grade{model.GradeC, model.GradeD, model.GradeF}, report.Grade,
 		"evaluate_script must not get A or B; got %s", report.Grade)
@@ -100,7 +100,7 @@ func TestArbitraryCodeChecker_ChromeEvaluate_NameSuffix(t *testing.T) {
 			Name:        name,
 			Description: "Evaluates a JavaScript expression in the browser page context.",
 		}
-		report := NewEngine().Scan(tool)
+		report := NewEngine(false).Scan(tool)
 		assert.True(t, report.HasFinding("AS-006"),
 			"%q: _evaluate name suffix must trigger AS-006", name)
 		assert.GreaterOrEqual(t, report.RiskScore, 25,
@@ -114,7 +114,7 @@ func TestArbitraryCodeChecker_NaturalLanguageEvaluatesJavaScript(t *testing.T) {
 		Name:        "chrome_runtime_evaluate",
 		Description: "Evaluates a JavaScript expression in the runtime context.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"),
 		"'evaluates a JavaScript expression' must trigger AS-006")
 }
@@ -125,7 +125,7 @@ func TestArbitraryCodeChecker_ExecuteArbitraryScripts(t *testing.T) {
 		Name:        "chrome_runtime_evaluate",
 		Description: "Can execute arbitrary scripts in the browser context.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"),
 		"'execute arbitrary scripts' must trigger AS-006")
 }
@@ -136,7 +136,7 @@ func TestArbitraryCodeChecker_PageEvaluate_CDPPattern(t *testing.T) {
 		Name:        "puppeteer_run",
 		Description: "Runs page.evaluate() to execute JavaScript in browser context.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"),
 		"page.evaluate() must trigger AS-006")
 }
@@ -147,7 +147,7 @@ func TestArbitraryCodeChecker_PuppeteerEvaluate_NameSuffix(t *testing.T) {
 		Name:        "puppeteer_evaluate",
 		Description: "Runs page.evaluate() to execute JavaScript in browser context.",
 	}
-	report := NewEngine().Scan(tool)
+	report := NewEngine(false).Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"))
 	assert.Contains(t, []model.Grade{model.GradeC, model.GradeD, model.GradeF}, report.Grade,
 		"puppeteer_evaluate must not get A or B; got %s", report.Grade)

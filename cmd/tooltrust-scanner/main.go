@@ -13,6 +13,7 @@ import (
 
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/adapter/mcp"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/analyzer"
+	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/deepscan"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/gateway"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/storage"
@@ -82,6 +83,7 @@ func newScanCmd() *cobra.Command {
 		failOn     string
 		dbPath     string
 		verbose    bool
+		deepScan   bool
 	)
 
 	cmd := &cobra.Command{
@@ -102,6 +104,7 @@ func newScanCmd() *cobra.Command {
 				failOn:     failOn,
 				dbPath:     dbPath,
 				verbose:    verbose,
+				deepScan:   deepScan,
 			})
 		},
 	}
@@ -114,6 +117,7 @@ func newScanCmd() *cobra.Command {
 	cmd.Flags().StringVar(&failOn, "fail-on", "", "exit non-zero if any tool reaches this action: allow | approval | block")
 	cmd.Flags().StringVar(&dbPath, "db", "", "persist scan results to SQLite database at this path")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "print per-tool scan process tree to stderr during scan")
+	cmd.Flags().BoolVar(&deepScan, "deep-scan", false, "Enable AI-based semantic analysis for deep prompt injection detection (downloads a ~22MB local model on first run)")
 	// Mutual exclusivity checked in runScan
 
 	return cmd
@@ -128,6 +132,7 @@ type scanOpts struct {
 	failOn     string
 	dbPath     string
 	verbose    bool
+	deepScan   bool
 }
 
 func runScan(ctx context.Context, opts scanOpts) error {
@@ -179,7 +184,13 @@ func runScan(ctx context.Context, opts scanOpts) error {
 		}
 	}
 
-	scanner := analyzer.NewScanner()
+	if opts.deepScan {
+		if err := deepscan.EnsureModels(ctx); err != nil {
+			return fmt.Errorf("failed to prepare deep-scan models: %w", err)
+		}
+	}
+
+	scanner := analyzer.NewScanner(opts.deepScan)
 	var policies []model.GatewayPolicy
 	summary := ScanSummary{Total: len(tools), ScannedAt: time.Now().UTC()}
 

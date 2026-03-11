@@ -34,17 +34,17 @@ type Scanner struct {
 // NewScanner returns a Scanner wired with all default checkers.
 // Supply chain (AS-004) uses the live OSV API; for tests inject a mock via
 // NewScannerWithCheckers or use Engine.Scan which calls the real checker.
-func NewScanner() *Scanner {
+func NewScanner(enableDeepScan bool) *Scanner {
 	return &Scanner{
 		checkers: []checker{
-			NewPoisoningChecker(),           // AS-001
-			NewPermissionChecker(),          // AS-002
-			NewScopeChecker(),               // AS-003
-			NewSupplyChainChecker(),         // AS-004
-			NewPrivilegeEscalationChecker(), // AS-005
-			NewArbitraryCodeChecker(),       // AS-006
-			NewSecretHandlingChecker(),      // AS-010
-			NewDoSResilienceChecker(),       // AS-011
+			NewPoisoningChecker(enableDeepScan), // AS-001
+			NewPermissionChecker(),              // AS-002
+			NewScopeChecker(),                   // AS-003
+			NewSupplyChainChecker(),             // AS-004
+			NewPrivilegeEscalationChecker(),     // AS-005
+			NewArbitraryCodeChecker(),           // AS-006
+			NewSecretHandlingChecker(),          // AS-010
+			NewDoSResilienceChecker(),           // AS-011
 		},
 	}
 }

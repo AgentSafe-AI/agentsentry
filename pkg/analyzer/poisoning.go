@@ -4,6 +4,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/deepscan"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
@@ -27,10 +28,14 @@ var injectionPatterns = []*regexp.Regexp{
 }
 
 // PoisoningChecker inspects a tool's description for prompt injection signals.
-type PoisoningChecker struct{}
+type PoisoningChecker struct {
+	enableDeepScan bool
+}
 
 // NewPoisoningChecker returns a new PoisoningChecker.
-func NewPoisoningChecker() *PoisoningChecker { return &PoisoningChecker{} }
+func NewPoisoningChecker(enableDeepScan bool) *PoisoningChecker {
+	return &PoisoningChecker{enableDeepScan: enableDeepScan}
+}
 
 // Check runs all injection pattern rules against the tool description.
 func (c *PoisoningChecker) Check(tool model.UnifiedTool) ([]model.Issue, error) {
@@ -53,5 +58,18 @@ func (c *PoisoningChecker) Check(tool model.UnifiedTool) ([]model.Issue, error) 
 			break
 		}
 	}
+
+	if len(issues) == 0 && c.enableDeepScan {
+		if _, found := deepscan.Analyze(desc); found {
+			issues = append(issues, model.Issue{
+				RuleID:      "AS-001",
+				Severity:    model.SeverityCritical,
+				Code:        "TOOL_POISONING",
+				Description: "semantic AI analysis detected deep prompt injection in tool description",
+				Location:    "description",
+			})
+		}
+	}
+
 	return issues, nil
 }
