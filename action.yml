@@ -17,6 +17,17 @@ inputs:
     required: false
     default: 'approval'
 
+outputs:
+  grade:
+    description: "The overall scan grade (A, B, C, D, F)"
+    value: ${{ steps.scan.outputs.grade }}
+  score:
+    description: "The numeric risk score of the scan"
+    value: ${{ steps.scan.outputs.score }}
+  result:
+    description: "The full JSON output of the scan report"
+    value: ${{ steps.scan.outputs.result }}
+
 runs:
   using: 'composite'
   steps:
@@ -30,6 +41,7 @@ runs:
         chmod +x /usr/local/bin/tooltrust
 
     - name: Run ToolTrust Scanner
+      id: scan
       shell: bash
       run: |
         if [ -n "${{ inputs.server }}" ] && [ -n "${{ inputs.input }}" ]; then
@@ -37,11 +49,41 @@ runs:
           exit 1
         fi
         
+        REPORT_FILE="$(mktemp)"
+        
+        # Turn off exit immediately so we can parse the JSON even if the scan fails
+        set +e
+        
         if [ -n "${{ inputs.server }}" ]; then
-          tooltrust scan --server "${{ inputs.server }}" --fail-on "${{ inputs.fail-on }}"
+          tooltrust scan --server "${{ inputs.server }}" --fail-on "${{ inputs.fail-on }}" --output json --file "$REPORT_FILE" >/dev/null
         elif [ -n "${{ inputs.input }}" ]; then
-          tooltrust scan --input "${{ inputs.input }}" --fail-on "${{ inputs.fail-on }}"
+          tooltrust scan --input "${{ inputs.input }}" --fail-on "${{ inputs.fail-on }}" --output json --file "$REPORT_FILE" >/dev/null
         else
           echo "::error::Either 'server' or 'input' must be provided."
           exit 1
         fi
+        
+        SCAN_EXIT_CODE=$?
+        
+        # Turn behavior back on
+        set -e
+        
+        if [ -f "$REPORT_FILE" ]; then
+          GRADE=$(jq -r '.summary.avg_grade // empty' "$REPORT_FILE")
+          SCORE=$(jq -r '.summary.avg_score // empty' "$REPORT_FILE")
+          
+          echo "grade=$GRADE" >> $GITHUB_OUTPUT
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+          
+          # Multiline output for result
+          echo "result<<EOF" >> $GITHUB_OUTPUT
+          cat "$REPORT_FILE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Print the report to stdout for Action logs
+          cat "$REPORT_FILE"
+        else
+          echo "::warning::Scan report was not generated."
+        fi
+        
+        exit $SCAN_EXIT_CODE

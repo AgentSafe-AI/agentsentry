@@ -61,6 +61,8 @@ type ScanSummary struct {
 	Allowed         int       `json:"allowed"`
 	RequireApproval int       `json:"require_approval"`
 	Blocked         int       `json:"blocked"`
+	AvgScore        int       `json:"avg_score"`
+	AvgGrade        string    `json:"avg_grade"`
 	ScannedAt       time.Time `json:"scanned_at"`
 }
 
@@ -220,6 +222,10 @@ func runScan(ctx context.Context, opts scanOpts) error {
 			summary.Blocked++
 		}
 	}
+
+	score, grade := avgRiskScore(policies)
+	summary.AvgScore = score
+	summary.AvgGrade = string(grade)
 
 	report := ScanReport{
 		SchemaVersion: "1.0",
