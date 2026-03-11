@@ -46,6 +46,9 @@ func writeSarifOutput(opts scanOpts, report ScanReport) error {
 				WithLocations([]*sarif.Location{loc})
 
 			run.AddResult(result)
+			// go-sarif assigns 'unit(-1)' to RuleIndex if the rule isn't found in tool.driver.rules,
+			// causing a uint64 underflow in JSON. We explicitly nil it out.
+			result.RuleIndex = nil
 		}
 	}
 
