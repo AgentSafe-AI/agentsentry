@@ -34,14 +34,14 @@ ToolTrust intercepts tool definitions *before* execution and blocks threats at t
 
 | ID | Detects |
 |----|---------|
-| 🛡️ **AS-001** | Prompt poisoning (`ignore previous instructions`, `system:`) |
-| 🔑 **AS-002** | Excessive permissions (`exec`, `network`, `db`, `fs` beyond stated purpose) |
-| 📐 **AS-003** | Scope mismatch (e.g. `read_config` secretly holding `exec`) |
-| 📦 **AS-004** | Supply chain vulnerabilities (CVEs in dependencies via OSV) |
-| 🔓 **AS-005** | Privilege escalation (`admin` OAuth scopes, `sudo` keywords) |
-| ⚡ **AS-006** | Arbitrary code execution (`evaluate_script`, `execute javascript`) |
-| 🗝️ **AS-010** | Insecure secret handling (params accepting keys/passwords) |
-| ⚡ **AS-011** | DoS resilience (missing rate-limits or timeouts) |
+| 🛡️&nbsp;**AS-001** | Prompt poisoning (`ignore previous instructions`, `system:`) |
+| 🔑&nbsp;**AS-002** | Excessive permissions (`exec`, `network`, `db`, `fs` beyond stated purpose) |
+| 📐&nbsp;**AS-003** | Scope mismatch (e.g. `read_config` secretly holding `exec`) |
+| 📦&nbsp;**AS-004** | Supply chain vulnerabilities (CVEs in dependencies via OSV) |
+| 🔓&nbsp;**AS-005** | Privilege escalation (`admin` OAuth scopes, `sudo` keywords) |
+| ⚡&nbsp;**AS-006** | Arbitrary code execution (`evaluate_script`, `execute javascript`) |
+| 🗝️&nbsp;**AS-010** | Insecure secret handling (params accepting keys/passwords) |
+| ⚡&nbsp;**AS-011** | DoS resilience (missing rate-limits or timeouts) |
 
 ## 🤝 GitHub Actions
 
