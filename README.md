@@ -133,4 +133,4 @@ tooltrust scan --input tools.json
 
 ---
 
-[Developer guide](docs/DEVELOPER.md) · [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [License: MIT](LICENSE) © 2026 AgentSafe-AI
+[Developer guide](docs/DEVELOPER.md) · [Contributing](docs/CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](docs/SECURITY.md) · [License: MIT](LICENSE) © 2026 AgentSafe-AI

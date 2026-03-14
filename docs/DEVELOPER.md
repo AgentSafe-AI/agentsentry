@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Go 1.24+ — [install](https://go.dev/dl/)
+- Go 1.26+ — [install](https://go.dev/dl/)
 - `golangci-lint` v2 — `brew install golangci-lint` or see [golangci-lint docs](https://golangci-lint.run/usage/install/)
 - Docker (optional, for image builds)
 

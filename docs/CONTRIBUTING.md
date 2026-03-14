@@ -4,7 +4,7 @@ Thank you for your interest in contributing. This document explains how to set u
 
 ## Prerequisites
 
-- Go 1.24+
+- Go 1.26+
 - `golangci-lint` v2 — `brew install golangci-lint` or see [golangci-lint docs](https://golangci-lint.run/usage/install/)
 - Git
 
