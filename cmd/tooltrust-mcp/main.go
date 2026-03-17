@@ -13,6 +13,7 @@ import (
 
 	"github.com/kballard/go-shellquote"
 	"github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/client/transport"
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
@@ -139,14 +140,16 @@ func scanLiveServer(ctx context.Context, serverCmd string) ([]model.UnifiedTool,
 		return nil, fmt.Errorf("empty server command")
 	}
 
-	c, err := client.NewStdioMCPClient(args[0], nil, args[1:]...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stdio client: %w", err)
+	// Create a cancelable context to forcefully kill the sub-process on exit.
+	execCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stdioTransport := transport.NewStdioWithOptions(args[0], nil, args[1:])
+	if startErr := stdioTransport.Start(execCtx); startErr != nil {
+		return nil, fmt.Errorf("failed to start transport: %w", startErr)
 	}
 
-	if startErr := c.Start(ctx); startErr != nil {
-		return nil, fmt.Errorf("failed to start client: %w", startErr)
-	}
+	c := client.NewClient(stdioTransport)
 	defer c.Close() //nolint:errcheck // closing client on exit
 
 	initReq := mcplib.InitializeRequest{}

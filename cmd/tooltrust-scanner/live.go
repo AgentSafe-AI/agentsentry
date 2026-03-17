@@ -7,6 +7,7 @@ import (
 
 	"github.com/kballard/go-shellquote"
 	"github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/client/transport"
 	mcpgo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/pterm/pterm"
 
@@ -23,26 +24,30 @@ func scanLiveServer(ctx context.Context, serverCmd string) ([]model.UnifiedTool,
 		return nil, fmt.Errorf("empty server command")
 	}
 
+	importTransport := true
+	_ = importTransport // To avoid unused variable issue during plan stage if I mess up imports
+
 	spinner, err := pterm.DefaultSpinner.Start("🔌 Connecting to live MCP server: " + serverCmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start spinner: %w", err)
 	}
 
-	c, err := client.NewStdioMCPClient(args[0], nil, args[1:]...)
-	if err != nil {
-		spinner.Fail("Failed to create stdio client")
-		return nil, fmt.Errorf("failed to create stdio client: %w", err)
-	}
+	// Create a cancelable context to forcefully kill the sub-process on exit.
+	execCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	if startErr := c.Start(ctx); startErr != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+	stdioTransport := transport.NewStdioWithOptions(args[0], nil, args[1:])
+	if startErr := stdioTransport.Start(execCtx); startErr != nil {
+		if execCtx.Err() == context.DeadlineExceeded {
 			spinner.Fail("Connection to MCP server timed out after 30 seconds.")
 			pterm.Error.Println("❌ Error: Connection to MCP server timed out after 30 seconds.")
 			return nil, fmt.Errorf("connection to MCP server timed out: %w", startErr)
 		}
-		spinner.Fail("Failed to start client")
-		return nil, fmt.Errorf("failed to start client: %w", startErr)
+		spinner.Fail("Failed to start transport")
+		return nil, fmt.Errorf("failed to start transport: %w", startErr)
 	}
+
+	c := client.NewClient(stdioTransport)
 	defer c.Close() //nolint:errcheck // closing client on exit, error is acceptable
 
 	initReq := mcpgo.InitializeRequest{}
