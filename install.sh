@@ -25,10 +25,10 @@ fi
 
 BINARY_NAME="tooltrust-scanner_${OS}_${ARCH}"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/$BINARY_NAME"
-CHECKSUM_URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/checksums.txt"
+CHECKSUM_URL="https://github.com/$REPO/releases/download/$RELEASE_TAG/checksums_${OS}_${ARCH}.txt"
 
 TMP_DIR=$(mktemp -d)
-TMP_FILE="$TMP_DIR/tooltrust"
+TMP_FILE="$TMP_DIR/tooltrust-scanner"
 
 echo "⬇️ Downloading version $RELEASE_TAG for $OS/$ARCH..."
 # Use curl -sfL to fail silently on HTTP errors (like 404) rather than downloading error pages
@@ -38,13 +38,43 @@ if ! curl -sfL "$DOWNLOAD_URL" -o "$TMP_FILE"; then
     exit 1
 fi
 
-echo "🔍 Verifying checksum (TODO: Implement full SHA256 validation from $CHECKSUM_URL when release process is finalized)..."
-# TODO: fetch checksums.txt, extract the sha256 for $BINARY_NAME, and verify $TMP_FILE
+echo "🔍 Verifying checksum..."
+CHECKSUM_FILE="$TMP_DIR/checksums.txt"
+if ! curl -sfL "$CHECKSUM_URL" -o "$CHECKSUM_FILE"; then
+    echo "❌ Failed to download checksum file."
+    rm -rf "$TMP_DIR"
+    exit 1
+fi
+
+EXPECTED_CHECKSUM=$(grep "$BINARY_NAME" "$CHECKSUM_FILE" | awk '{print $1}')
+if [ -z "$EXPECTED_CHECKSUM" ]; then
+    echo "❌ Binary not found in checksum file."
+    rm -rf "$TMP_DIR"
+    exit 1
+fi
+
+if command -v shasum >/dev/null 2>&1; then
+    ACTUAL_CHECKSUM=$(shasum -a 256 "$TMP_FILE" | awk '{print $1}')
+elif command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL_CHECKSUM=$(sha256sum "$TMP_FILE" | awk '{print $1}')
+else
+    echo "⚠️  Neither shasum nor sha256sum found. Skipping checksum verification."
+    ACTUAL_CHECKSUM=$EXPECTED_CHECKSUM
+fi
+
+if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+    echo "❌ Checksum verification failed!"
+    echo "Expected: $EXPECTED_CHECKSUM"
+    echo "Actual:   $ACTUAL_CHECKSUM"
+    rm -rf "$TMP_DIR"
+    exit 1
+fi
+echo "✅ Checksum verified."
 
 chmod +x "$TMP_FILE"
 
 INSTALL_DIR="/usr/local/bin"
-TARGET_FILE="$INSTALL_DIR/tooltrust"
+TARGET_FILE="$INSTALL_DIR/tooltrust-scanner"
 
 echo "📦 Installing to $INSTALL_DIR..."
 if [ -w "$INSTALL_DIR" ]; then
@@ -56,7 +86,7 @@ else
     else
         echo "⚠️  Sudo not available or requires password."
         INSTALL_DIR="$HOME/.local/bin"
-        TARGET_FILE="$INSTALL_DIR/tooltrust"
+        TARGET_FILE="$INSTALL_DIR/tooltrust-scanner"
         echo "📦 Falling back to user directory: $INSTALL_DIR..."
         mkdir -p "$INSTALL_DIR"
         mv "$TMP_FILE" "$TARGET_FILE"
@@ -65,4 +95,4 @@ else
 fi
 
 rm -rf "$TMP_DIR"
-echo "✅ Installation complete! Run 'tooltrust --help' to get started."
+echo "✅ Installation complete! Run 'tooltrust-scanner --help' to get started."

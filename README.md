@@ -13,9 +13,8 @@
 
 ## 🚀 Quick Start
 
-**Install via Homebrew:**
 ```bash
-brew install AgentSafe-AI/tooltrust-scanner/tooltrust-scanner
+curl -sfL https://raw.githubusercontent.com/AgentSafe-AI/tooltrust-scanner/main/install.sh | bash
 ```
 
 *(Alternatively, use `go install github.com/AgentSafe-AI/tooltrust-scanner/cmd/tooltrust-scanner@latest`)*
