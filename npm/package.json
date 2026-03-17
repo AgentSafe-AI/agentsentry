@@ -1,0 +1,8 @@
+{
+  "name": "tooltrust-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server that audits other MCP servers for security risks.",
+  "bin": {
+    "tooltrust-mcp": "./bin/run.js"
+  }
+}
