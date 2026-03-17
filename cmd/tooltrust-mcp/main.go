@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,6 +28,25 @@ import (
 var version = "dev"
 
 func main() {
+	help := flag.Bool("help", false, "Show usage information")
+	flag.BoolVar(help, "h", false, "Show usage information")
+	flag.Usage = func() {
+		fmt.Printf("Usage: tooltrust-mcp [options]\n\n")
+		fmt.Printf("Starts the ToolTrust Scanner as an MCP stdio server.\n\n")
+		fmt.Printf("Options:\n")
+		fmt.Printf("  -h, --help    Show this help message\n\n")
+		fmt.Printf("The server communicates over stdin/stdout using the MCP protocol.\n")
+		fmt.Printf("Configure it in your MCP client (e.g. Claude Desktop) as:\n\n")
+		fmt.Printf("  {\"command\": \"npx\", \"args\": [\"-y\", \"@agentsafe/tooltrust-mcp\"]}\n\n")
+		fmt.Printf("Version: %s\n", version)
+	}
+	flag.Parse()
+
+	if *help {
+		flag.Usage()
+		os.Exit(0)
+	}
+
 	srv := server.NewMCPServer(
 		"tooltrust-scanner",
 		version,
