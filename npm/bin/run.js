@@ -72,14 +72,31 @@ function runBinary(args) {
 }
 
 async function main() {
+  const pkg = require('../package.json');
   const args = process.argv.slice(2);
+
+  if (args.includes('--version') || args.includes('-v')) {
+    console.log(pkg.version);
+    process.exit(0);
+  }
+
   if (args.includes('--help') || args.includes('-h')) {
-    console.log('Usage: tooltrust-mcp [options]\n');
+    console.log(`ToolTrust MCP Server (${pkg.version})\n`);
     console.log('Starts the ToolTrust Scanner as an MCP stdio server.\n');
     console.log('Options:');
-    console.log('  -h, --help    Show this help message\n');
-    console.log('The server communicates over stdin/stdout using the MCP protocol.');
-    console.log('Configure it in your MCP client (e.g. Claude Desktop) as:\n');
+    console.log('  -h, --help     Show this help message');
+    console.log('  -v, --version  Show version information\n');
+    console.log('Supported Security Rules (Catalog):');
+    console.log('  AS-001  Tool Poisoning / Prompt Injection (malicious instructions in tool descriptions)');
+    console.log('  AS-002  Excessive Permission Surface (executing commands, file writes, network access)');
+    console.log('  AS-003  Scope Mismatch (tool name implies read-only but requests write permissions)');
+    console.log('  AS-004  Supply Chain CVE (known vulnerabilities in declared package dependencies)');
+    console.log('  AS-005  Privilege Escalation (tools that acquire elevated access at runtime)');
+    console.log('  AS-006  Arbitrary Code Execution (eval, execute_script, sandbox escape patterns)');
+    console.log('  AS-007  Insufficient Tool Data (missing description or input schema)');
+    console.log('  AS-010  Secret Handling (tools requesting API keys, tokens, or credentials)');
+    console.log('  AS-011  DoS Resilience (missing rate-limit or timeout configuration)\n');
+    console.log('Configuration for Claude Desktop:');
     console.log('  {"command": "npx", "args": ["-y", "@agentsafe/tooltrust-mcp"]}');
     process.exit(0);
   }

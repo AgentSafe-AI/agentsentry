@@ -30,18 +30,33 @@ var version = "dev"
 func main() {
 	help := flag.Bool("help", false, "Show usage information")
 	flag.BoolVar(help, "h", false, "Show usage information")
+	ver := flag.Bool("version", false, "Show version information")
+	flag.BoolVar(ver, "v", false, "Show version information")
 	flag.Usage = func() {
-		fmt.Printf("Usage: tooltrust-mcp [options]\n\n")
+		fmt.Printf("ToolTrust MCP Server (%s)\n\n", version)
 		fmt.Printf("Starts the ToolTrust Scanner as an MCP stdio server.\n\n")
 		fmt.Printf("Options:\n")
-		fmt.Printf("  -h, --help    Show this help message\n\n")
-		fmt.Printf("The server communicates over stdin/stdout using the MCP protocol.\n")
-		fmt.Printf("Configure it in your MCP client (e.g. Claude Desktop) as:\n\n")
-		fmt.Printf("  {\"command\": \"npx\", \"args\": [\"-y\", \"@agentsafe/tooltrust-mcp\"]}\n\n")
-		fmt.Printf("Version: %s\n", version)
+		fmt.Printf("  -h, --help     Show this help message\n")
+		fmt.Printf("  -v, --version  Show version information\n\n")
+		fmt.Printf("Supported Security Rules (Catalog):\n")
+		fmt.Printf("  AS-001  Tool Poisoning / Prompt Injection (malicious instructions in tool descriptions)\n")
+		fmt.Printf("  AS-002  Excessive Permission Surface (executing commands, file writes, network access)\n")
+		fmt.Printf("  AS-003  Scope Mismatch (tool name implies read-only but requests write permissions)\n")
+		fmt.Printf("  AS-004  Supply Chain CVE (known vulnerabilities in declared package dependencies)\n")
+		fmt.Printf("  AS-005  Privilege Escalation (tools that acquire elevated access at runtime)\n")
+		fmt.Printf("  AS-006  Arbitrary Code Execution (eval, execute_script, sandbox escape patterns)\n")
+		fmt.Printf("  AS-007  Insufficient Tool Data (missing description or input schema)\n")
+		fmt.Printf("  AS-010  Secret Handling (tools requesting API keys, tokens, or credentials)\n")
+		fmt.Printf("  AS-011  DoS Resilience (missing rate-limit or timeout configuration)\n\n")
+		fmt.Printf("Configuration for Claude Desktop:\n")
+		fmt.Printf("  {\"command\": \"npx\", \"args\": [\"-y\", \"@agentsafe/tooltrust-mcp\"]}\n")
 	}
 	flag.Parse()
 
+	if *ver {
+		fmt.Printf("%s\n", version)
+		os.Exit(0)
+	}
 	if *help {
 		flag.Usage()
 		os.Exit(0)
