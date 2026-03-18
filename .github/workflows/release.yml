@@ -6,7 +6,7 @@ on:
       - "v*.*.*"   # triggers on v1.0.0, v0.2.1-beta, etc.
 
 permissions:
-  contents: write   # needed to create GitHub Releases and upload assets
+  contents: write   # needed to create GitHub Releases, upload assets, and push formula updates
   packages: write   # needed to push to GHCR
 
 jobs:
@@ -237,3 +237,35 @@ jobs:
           # Note: Since the release was just created, the binary is already available on GitHub.
           npx -y tooltrust-mcp@latest --help
 
+  # ── 6. Update Homebrew Formula ─────────────────────────────────────────────
+  update-formula:
+    name: Update Homebrew Formula
+    runs-on: ubuntu-latest
+    needs: [release]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tarball SHA256
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          URL="https://github.com/${{ github.repository }}/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz"
+          SHA256=$(curl -sL "$URL" | shasum -a 256 | awk '{print $1}')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "SHA256=$SHA256" >> $GITHUB_ENV
+
+      - name: Update Formula/tooltrust-scanner.rb
+        run: |
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" Formula/tooltrust-scanner.rb
+          sed -i "s/sha256 \".*\"/sha256 \"${SHA256}\"/" Formula/tooltrust-scanner.rb
+
+      - name: Commit and push updated formula
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/tooltrust-scanner.rb
+          git diff --staged --quiet || git commit -m "chore: update Homebrew formula to ${GITHUB_REF_NAME}"
+          git push

@@ -26,7 +26,7 @@ tooltrust-scanner version
 
 **Install a Specific Version (Optional):**
 ```bash
-curl -sfL https://raw.githubusercontent.com/AgentSafe-AI/tooltrust-scanner/main/install.sh | VERSION=v1.0.6 bash
+curl -sfL https://raw.githubusercontent.com/AgentSafe-AI/tooltrust-scanner/main/install.sh | VERSION=vX.Y.Z bash
 ```
 
 ## 💻 Usage
