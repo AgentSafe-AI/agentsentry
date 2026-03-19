@@ -341,7 +341,120 @@ func printPtermUI(report ScanReport) error {
 		WithTitleTopCenter().
 		Println(summaryContent)
 
+	// ── Per-grade action guide ─────────────────────────────────────────────
+	printGradeGuide(worstGrade(report.Policies))
+
 	return nil
+}
+
+// worstGrade returns the highest-risk grade across all policies.
+func worstGrade(policies []model.GatewayPolicy) model.Grade {
+	order := map[model.Grade]int{
+		model.GradeA: 0,
+		model.GradeB: 1,
+		model.GradeC: 2,
+		model.GradeD: 3,
+		model.GradeF: 4,
+	}
+	worst := model.GradeA
+	for _, p := range policies {
+		if order[p.Score.Grade] > order[worst] {
+			worst = p.Score.Grade
+		}
+	}
+	return worst
+}
+
+// printGradeGuide prints a concise, actionable next-step box keyed to the worst grade.
+func printGradeGuide(grade model.Grade) {
+	type guide struct {
+		title string
+		icon  string
+		steps []string
+		color pterm.Color
+	}
+
+	guides := map[model.Grade]guide{
+		model.GradeA: {
+			title: "All tools passed",
+			icon:  "✅",
+			steps: []string{
+				"No action required — all tools are within safe thresholds.",
+				"Re-run after updates: tooltrust-scanner scan --server \"...\"",
+			},
+			color: pterm.FgGreen,
+		},
+		model.GradeB: {
+			title: "Low-risk findings detected",
+			icon:  "ℹ️ ",
+			steps: []string{
+				"1. Review the flagged tools above — Grade B is allowed but monitored.",
+				"2. Check whether the declared permissions match actual usage.",
+				"3. Re-scan after each upstream release to catch regressions.",
+				"4. Consider reporting findings to the tool author (see GitHub Issues).",
+			},
+			color: pterm.FgCyan,
+		},
+		model.GradeC: {
+			title: "Some tools need human approval",
+			icon:  "⚠️ ",
+			steps: []string{
+				"1. Review every APPROVAL tool listed above.",
+				"2. In your MCP config set  approval_required: true  for those tools.",
+				"3. Ask: do you actually need these tools? Remove unused ones.",
+				"4. Report findings to the tool author:",
+				"   https://github.com/AgentSafe-AI/tooltrust-directory/issues/new?template=SCAN_REQUEST.md",
+			},
+			color: pterm.FgYellow,
+		},
+		model.GradeD: {
+			title: "High-risk tools — action required",
+			icon:  "🔴",
+			steps: []string{
+				"1. Do NOT run APPROVAL or BLOCK tools unattended.",
+				"2. Remove any BLOCK tools from your MCP config immediately.",
+				"3. For APPROVAL tools: run in a sandboxed environment only.",
+				"4. File a security report with the tool author.",
+				"5. Consider switching to a safer alternative from the ToolTrust Directory:",
+				"   https://github.com/AgentSafe-AI/tooltrust-directory",
+			},
+			color: pterm.FgLightRed,
+		},
+		model.GradeF: {
+			title: "Critical risk — remove these tools",
+			icon:  "🚨",
+			steps: []string{
+				"1. Remove ALL BLOCK tools from your agent config NOW.",
+				"2. Do not use these tools even with approval_required.",
+				"3. Audit your agent's recent actions — it may have already been compromised.",
+				"4. Report to the tool author and the ToolTrust Directory:",
+				"   https://github.com/AgentSafe-AI/tooltrust-directory/issues/new?template=SCAN_REQUEST.md",
+				"5. Find safer alternatives: https://github.com/AgentSafe-AI/tooltrust-directory",
+			},
+			color: pterm.FgRed,
+		},
+	}
+
+	g, ok := guides[grade]
+	if !ok || grade == model.GradeA {
+		if ok {
+			pterm.Println()
+			pterm.FgGreen.Printfln("%s  %s", g.icon, g.steps[0])
+		}
+		return
+	}
+
+	content := ""
+	for _, step := range g.steps {
+		content += step + "\n"
+	}
+	content = strings.TrimRight(content, "\n")
+
+	pterm.Println()
+	pterm.DefaultBox.
+		WithTitle(pterm.NewStyle(g.color, pterm.Bold).Sprintf("%s  What to do with Grade %s", g.icon, grade)).
+		WithTitleTopLeft().
+		Println(pterm.NewStyle(g.color).Sprint(content))
 }
 
 // formatToolLabel returns a coloured "Tool: <name>  [ACTION]" label.
@@ -360,22 +473,48 @@ func formatToolLabel(policy model.GatewayPolicy) string {
 	return fmt.Sprintf("%s  %s  %s", pterm.Bold.Sprint(name), badge, pterm.FgGray.Sprint(scoreStr))
 }
 
-// formatIssueLabel returns a coloured finding line.
+// ruleHint returns a short, specific fix hint for each rule ID.
+var ruleHint = map[string]string{
+	"AS-001": "→ Remove adversarial instructions from the tool description before registering it.",
+	"AS-002": "→ If unused: remove the tool. If needed: restrict permissions to minimum required.",
+	"AS-003": "→ Rename the tool or fix its permission declarations so name and capabilities match.",
+	"AS-004": "→ Upgrade or replace the vulnerable dependency. Enable Dependabot on the repo.",
+	"AS-005": "→ Narrow OAuth scopes. Remove admin/:write wildcards and sudo-style escalation.",
+	"AS-006": "→ If unused: remove from MCP config. If needed: set approval_required: true and never run unattended.",
+	"AS-007": "→ Ask the tool author to add a description and input schema to this tool.",
+	"AS-010": "→ Never pass raw credentials as tool inputs. Use a secret manager instead.",
+	"AS-011": "→ Add explicit timeout and rate-limit config to the tool before use in production.",
+}
+
+// formatIssueLabel returns a coloured finding line with an actionable fix hint.
 func formatIssueLabel(issue model.Issue) string {
 	wt := severityWeight[issue.Severity]
-	raw := fmt.Sprintf("[%s] %s (+%d): %s", issue.RuleID, issue.Severity, wt, issue.Description)
+	main := fmt.Sprintf("[%s] %s (+%d): %s", issue.RuleID, issue.Severity, wt, issue.Description)
+	hint := ruleHint[issue.RuleID]
+
+	var coloredMain, coloredHint string
 	switch issue.Severity {
 	case model.SeverityCritical:
-		return "🚨 " + pterm.FgRed.Sprint(raw)
+		coloredMain = "🚨 " + pterm.FgRed.Sprint(main)
+		coloredHint = pterm.FgRed.Sprint(hint)
 	case model.SeverityHigh:
-		return "🔴 " + pterm.FgLightRed.Sprint(raw)
+		coloredMain = "🔴 " + pterm.FgLightRed.Sprint(main)
+		coloredHint = pterm.FgLightRed.Sprint(hint)
 	case model.SeverityMedium:
-		return "⚠️  " + pterm.FgYellow.Sprint(raw)
+		coloredMain = "⚠️  " + pterm.FgYellow.Sprint(main)
+		coloredHint = pterm.FgYellow.Sprint(hint)
 	case model.SeverityLow:
-		return "🔵 " + pterm.FgBlue.Sprint(raw)
+		coloredMain = "🔵 " + pterm.FgBlue.Sprint(main)
+		coloredHint = pterm.FgBlue.Sprint(hint)
 	default:
-		return "ℹ️  " + pterm.FgGray.Sprint(raw)
+		coloredMain = "ℹ️  " + pterm.FgGray.Sprint(main)
+		coloredHint = pterm.FgGray.Sprint(hint)
 	}
+
+	if hint == "" {
+		return coloredMain
+	}
+	return coloredMain + "\n       " + coloredHint
 }
 
 // buildRiskLine builds a compact risk summary string e.g. "A×3  B×1  F×1".
