@@ -23,9 +23,10 @@ var injectionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)(developer|unrestricted)\s+mode`),
 	regexp.MustCompile(`(?i)full\s+system\s+access`),
 	regexp.MustCompile(`(?i)jailbreak`),
-	// Data Exfiltration
+	// Data Exfiltration — requires an explicit external-destination indicator to
+	// avoid false positives on legitimate "send X to Y" phrasing in email/messaging tools.
 	regexp.MustCompile(`(?i)send.*(history|data|conversation).*to.*(http|url)`),
-	regexp.MustCompile(`(?i)(?:(?:transmit|send|forward|post|upload|pipe).*(?:data|info|content)|(?:data|info|content).*(?:transmit|send|forward|post|upload|pipe)).*to\b`),
+	regexp.MustCompile(`(?i)(?:transmit|send|forward|post|upload|pipe).{0,80}(?:data|info|content).{0,80}\bto\s+(?:https?://|external\s+\w+|remote\s+\w+|attacker|base64)`),
 }
 
 // PoisoningChecker inspects a tool's description for prompt injection signals.
