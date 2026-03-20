@@ -179,21 +179,31 @@ func TestArbitraryCodeChecker_BacktickShellCommand_ShouldTrigger(t *testing.T) {
 
 func TestArbitraryCodeChecker_BacktickNonShell_NoFalsePositive(t *testing.T) {
 	// "sh" inside ordinary words inside backtick code spans must NOT trigger.
+	// These are real patterns from production MCP servers that caused false positives.
 	cases := []struct {
 		name string
 		desc string
+		note string
 	}{
-		{"search_docs", "Use topic `troubleshooting` for error queries."},
-		{"notion_fetch", "Each data source has a unique ID shown in `<data-source url=\"collection://...\">` tags."},
-		{"publish_page", "Call `publish` to make the page visible."},
-		{"refresh_token", "Use `refresh` to renew the access token."},
+		// v0.1.8 generic false positives
+		{"search_docs", "Use topic `troubleshooting` for error queries.", "aws___search_documentation"},
+		{"notion_fetch", "Each unique ID is shown in `<data-source url=\"collection://...\">` tags.", "notion-fetch: 'shown'"},
+		{"publish_page", "Call `publish` to make the page visible.", "publish"},
+		{"refresh_token", "Use `refresh` to renew the access token.", "refresh"},
+		// Bitbucket: "squash" and "push" in JSON body examples
+		{"bb_post", "Merge PR: path=/pullrequests/{id}/merge body: `{\"merge_strategy\": \"squash\"}`", "bb_post: squash"},
+		{"bb_put", "Update webhook: body: `{\"kind\": \"push\", \"pattern\": \"main\"}`", "bb_put: push"},
+		// Vision One: "isHit" in filter expressions
+		{"create_subscription", "Filter: `sweepType eq 'manual' AND isHit eq true`", "vision-one: isHit"},
+		// Figma: "published" in API paths
+		{"FIGMA_GET_LOCAL_VARIABLES", "Retrieves variables. Published: `GET /v1/files/{key}/variables/published`", "figma: published"},
 	}
 	for _, tc := range cases {
 		tool := model.UnifiedTool{Name: tc.name, Description: tc.desc}
 		eng, _ := NewEngine(false, "")
 		report := eng.Scan(tool)
 		assert.False(t, report.HasFinding("AS-006"),
-			"'sh' in word inside backticks must NOT trigger AS-006: %q", tc.desc)
+			"false positive [%s]: %q must NOT trigger AS-006", tc.note, tc.desc)
 	}
 }
 
