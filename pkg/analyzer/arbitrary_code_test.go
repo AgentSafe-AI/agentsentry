@@ -197,6 +197,8 @@ func TestArbitraryCodeChecker_BacktickNonShell_NoFalsePositive(t *testing.T) {
 		{"create_subscription", "Filter: `sweepType eq 'manual' AND isHit eq true`", "vision-one: isHit"},
 		// Figma: "published" in API paths
 		{"FIGMA_GET_LOCAL_VARIABLES", "Retrieves variables. Published: `GET /v1/files/{key}/variables/published`", "figma: published"},
+		// mcp-shrimp-task-manager: "backslashes" contains "sh" as substring
+		{"split_tasks", "Update mode: `keep existing unfinished tasks`, backslashes `\\\\` are escaped.", "shrimp: backslashes"},
 	}
 	for _, tc := range cases {
 		tool := model.UnifiedTool{Name: tc.name, Description: tc.desc}
@@ -234,6 +236,45 @@ func TestArbitraryCodeChecker_ArbitraryCommand_ShouldTrigger(t *testing.T) {
 	report := eng.Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"),
 		"'execute arbitrary commands' must trigger AS-006")
+}
+
+// ---------------------------------------------------------------------------
+// Regression tests: false negatives — "run code" / "run shortcut" patterns
+// ---------------------------------------------------------------------------
+
+func TestArbitraryCodeChecker_RunCodeSnippet_FalseNegative(t *testing.T) {
+	// mcp-server-code-runner: tool "run-code" with "Run code snippet and return the result."
+	tool := model.UnifiedTool{
+		Name:        "run-code",
+		Description: "Run code snippet and return the result.",
+	}
+	eng, _ := NewEngine(false, "")
+	report := eng.Scan(tool)
+	assert.True(t, report.HasFinding("AS-006"),
+		"'run code snippet' must trigger AS-006")
+}
+
+func TestArbitraryCodeChecker_RunCode_Keyword(t *testing.T) {
+	tool := model.UnifiedTool{
+		Name:        "execute",
+		Description: "Run code in the selected language and return output.",
+	}
+	eng, _ := NewEngine(false, "")
+	report := eng.Scan(tool)
+	assert.True(t, report.HasFinding("AS-006"),
+		"'run code' in description must trigger AS-006")
+}
+
+func TestArbitraryCodeChecker_RunShortcut_SiriShortcuts(t *testing.T) {
+	// mcp-server-siri-shortcuts: tool "run_shortcut" executes arbitrary macOS shortcuts
+	tool := model.UnifiedTool{
+		Name:        "run_shortcut",
+		Description: "Run a Siri shortcut by name.",
+	}
+	eng, _ := NewEngine(false, "")
+	report := eng.Scan(tool)
+	assert.True(t, report.HasFinding("AS-006"),
+		"run_shortcut must trigger AS-006")
 }
 
 func TestArbitraryCodeChecker_PuppeteerEvaluate_NameSuffix(t *testing.T) {

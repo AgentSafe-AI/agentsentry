@@ -17,12 +17,16 @@ var arbitraryCodeKeywords = []string{
 	"execute script",
 	"execute code",
 	"run script",
+	"run code",
+	"run shortcut",
+	"run_shortcut",
 	"browser injection",
 	"arbitrary code",
 	"arbitrary script",
 	"arbitrary command",
 	"python code",
 	"runs user-provided",
+	"code snippet",
 }
 
 // arbitraryCodePatterns are compiled regexes for natural language variants
