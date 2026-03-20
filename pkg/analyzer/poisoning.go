@@ -8,25 +8,75 @@ import (
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
-// injectionPatterns are compiled regexes that signal prompt injection attempts.
-var injectionPatterns = []*regexp.Regexp{
-	// "ignore previous instructions", "disregard your instructions", "bypass filters"
-	regexp.MustCompile(`(?i)(ignore|disregard|bypass)\s+(?:\w+\s+){0,3}(instructions?|prompts?|context|rules?|guidelines?|restrictions?|filters?)`),
-	regexp.MustCompile(`(?i)system\s*:`),
-	regexp.MustCompile(`(?i)<\s*INST\s*>`),
-	regexp.MustCompile(`(?i)\[INST\]`),
-	regexp.MustCompile(`(?i)act\s+as\s+(an?\s+)?(admin|root|superuser|privileged)`),
-	regexp.MustCompile(`(?i)forget\s+(your|all|previous)\s+(instructions?|context|rules?|training)`),
-	regexp.MustCompile(`(?i)you\s+(are\s+now|must\s+now|will\s+now)\s+(act|behave|operate)`),
-	regexp.MustCompile(`(?i)exfiltrate`),
-	// Jailbreak / Privilege escalation
-	regexp.MustCompile(`(?i)(developer|unrestricted)\s+mode`),
-	regexp.MustCompile(`(?i)full\s+system\s+access`),
-	regexp.MustCompile(`(?i)jailbreak`),
-	// Data Exfiltration — requires an explicit external-destination indicator to
-	// avoid false positives on legitimate "send X to Y" phrasing in email/messaging tools.
-	regexp.MustCompile(`(?i)send.*(history|data|conversation).*to.*(http|url)`),
-	regexp.MustCompile(`(?i)(?:transmit|send|forward|post|upload|pipe).{0,80}(?:data|info|content).{0,80}\bto\s+(?:https?://|external\s+\w+|remote\s+\w+|attacker|base64)`),
+// patternRule pairs an injection-detection regex with the severity it emits
+// and a flag marking it as a low-confidence "data-movement" rule.
+//
+// Low-confidence rules (skipForDataMovement=true) are skipped when the
+// tool's name clearly belongs to a data-movement domain (email, messaging,
+// forwarding) AND the name contains no external-destination signal.  They
+// also emit Medium instead of Critical to reflect reduced certainty.
+type patternRule struct {
+	pattern             *regexp.Regexp
+	severity            model.Severity
+	skipForDataMovement bool
+}
+
+// legitimateDataMovementTools lists tool-name keywords that indicate sending
+// or forwarding data is the tool's intended purpose — not an injection signal.
+var legitimateDataMovementTools = []string{
+	"email", "mail", "reply", "forward", "draft", "message",
+	"send", "notification", "webhook", "publish", "broadcast",
+}
+
+// suspiciousNameTerms cancels the data-movement skip when found in a tool
+// name: a name like "send_to_url" or "forward_to_remote_host" is itself a
+// red flag, so the data-exfiltration patterns must still run.
+var suspiciousNameTerms = []string{
+	"external", "remote", "http", "url", "attacker", "exfil",
+}
+
+// injectionRules is the ordered list of AS-001 detection rules, split into:
+//   - High-confidence: explicit injection markers — always Critical.
+//   - Low-confidence: data-exfiltration patterns — Medium severity, skipped
+//     for tools whose names imply legitimate data movement.
+var injectionRules = []patternRule{
+	// ── High-confidence: explicit injection markers ──────────────────────────
+	{
+		regexp.MustCompile(`(?i)(ignore|disregard|bypass)\s+(?:\w+\s+){0,3}(instructions?|prompts?|context|rules?|guidelines?|restrictions?|filters?)`),
+		model.SeverityCritical, false,
+	},
+	{regexp.MustCompile(`(?i)system\s*:`), model.SeverityCritical, false},
+	{regexp.MustCompile(`(?i)<\s*INST\s*>`), model.SeverityCritical, false},
+	{regexp.MustCompile(`(?i)\[INST\]`), model.SeverityCritical, false},
+	{
+		regexp.MustCompile(`(?i)act\s+as\s+(an?\s+)?(admin|root|superuser|privileged)`),
+		model.SeverityCritical, false,
+	},
+	{
+		regexp.MustCompile(`(?i)forget\s+(your|all|previous)\s+(instructions?|context|rules?|training)`),
+		model.SeverityCritical, false,
+	},
+	{
+		regexp.MustCompile(`(?i)you\s+(are\s+now|must\s+now|will\s+now)\s+(act|behave|operate)`),
+		model.SeverityCritical, false,
+	},
+	{regexp.MustCompile(`(?i)exfiltrate`), model.SeverityCritical, false},
+	{regexp.MustCompile(`(?i)(developer|unrestricted)\s+mode`), model.SeverityCritical, false},
+	{regexp.MustCompile(`(?i)full\s+system\s+access`), model.SeverityCritical, false},
+	{regexp.MustCompile(`(?i)jailbreak`), model.SeverityCritical, false},
+
+	// ── Low-confidence: data-exfiltration patterns ───────────────────────────
+	// Require an explicit external-destination indicator so they don't fire on
+	// everyday "send X to Y" API documentation language.  Downgraded to Medium
+	// and skipped for tools whose names imply safe data movement.
+	{
+		regexp.MustCompile(`(?i)send.*(history|data|conversation).*to.*(http|url)`),
+		model.SeverityMedium, true,
+	},
+	{
+		regexp.MustCompile(`(?i)(?:transmit|send|forward|post|upload|pipe).{0,80}(?:data|info|content).{0,80}\bto\s+(?:https?://|external\s+\w+|remote\s+\w+|attacker|base64)`),
+		model.SeverityMedium, true,
+	},
 }
 
 // PoisoningChecker inspects a tool's description for prompt injection signals.
@@ -39,22 +89,27 @@ func NewPoisoningChecker(enableDeepScan bool) *PoisoningChecker {
 	return &PoisoningChecker{enableDeepScan: enableDeepScan}
 }
 
-// Check runs all injection pattern rules against the tool description.
+// Check runs all injection-pattern rules against the tool description.
 func (c *PoisoningChecker) Check(tool model.UnifiedTool) ([]model.Issue, error) {
 	desc := strings.TrimSpace(tool.Description)
 	if desc == "" {
 		return nil, nil
 	}
 
+	skipDataMovement := isDataMovementTool(tool.Name)
+
 	var issues []model.Issue
-	for _, pattern := range injectionPatterns {
-		if pattern.MatchString(desc) {
+	for _, rule := range injectionRules {
+		if skipDataMovement && rule.skipForDataMovement {
+			continue
+		}
+		if rule.pattern.MatchString(desc) {
 			issues = append(issues, model.Issue{
 				RuleID:      "AS-001",
 				ToolName:    tool.Name,
-				Severity:    model.SeverityCritical,
+				Severity:    rule.severity,
 				Code:        "TOOL_POISONING",
-				Description: "possible prompt injection detected in tool description: pattern matched: " + pattern.String(),
+				Description: "possible prompt injection detected in tool description: pattern matched: " + rule.pattern.String(),
 				Location:    "description",
 			})
 			// One finding per tool is sufficient for a poisoning verdict.
@@ -76,4 +131,24 @@ func (c *PoisoningChecker) Check(tool model.UnifiedTool) ([]model.Issue, error) 
 	}
 
 	return issues, nil
+}
+
+// isDataMovementTool returns true when the tool name contains a data-movement
+// keyword (email/reply/forward/…) but does NOT also contain an
+// external-destination term (url/remote/external/…) that would itself be a
+// red flag.  The dual check prevents a malicious tool named "send_to_url"
+// or "forward_to_remote_host" from bypassing the data-exfiltration patterns.
+func isDataMovementTool(name string) bool {
+	nameLower := strings.ToLower(name)
+	for _, s := range suspiciousNameTerms {
+		if strings.Contains(nameLower, s) {
+			return false
+		}
+	}
+	for _, kw := range legitimateDataMovementTools {
+		if strings.Contains(nameLower, kw) {
+			return true
+		}
+	}
+	return false
 }
