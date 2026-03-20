@@ -20,6 +20,7 @@ var arbitraryCodeKeywords = []string{
 	"browser injection",
 	"arbitrary code",
 	"arbitrary script",
+	"arbitrary command",
 	"python code",
 	"runs user-provided",
 }
@@ -31,8 +32,12 @@ var arbitraryCodePatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\beval\b`),
 	// "evaluates … javascript / js / script / expression / code"
 	regexp.MustCompile(`(?i)evaluat\w*\s+\w*\s*(javascript|js|script|expression|code)`),
-	// "execute … javascript / js / arbitrary / script"
-	regexp.MustCompile(`(?i)execut\w*\s+\w*\s*(javascript|js|arbitrary|script)`),
+	// "execute … javascript / js / script"
+	// Note: "arbitrary" is intentionally excluded here — "arbitrary" alone is
+	// caught by the keywords "arbitrary code/script/command".  Keeping it in
+	// the regex caused false positives on GraphQL tools ("execute an arbitrary
+	// GraphQL query") and REST clients ("execute an arbitrary API request").
+	regexp.MustCompile(`(?i)execut\w*\s+\w*\s*(javascript|js|script)`),
 	// "run(s) … javascript / arbitrary … code/script"
 	regexp.MustCompile(`(?i)runs?\s+\w*\s*(javascript|arbitrary\s+(code|script))`),
 	// "inject … script / code"

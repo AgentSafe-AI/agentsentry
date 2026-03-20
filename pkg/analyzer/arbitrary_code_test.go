@@ -153,6 +153,39 @@ func TestArbitraryCodeChecker_PageEvaluate_CDPPattern(t *testing.T) {
 		"page.evaluate() must trigger AS-006")
 }
 
+// ---------------------------------------------------------------------------
+// Regression tests: false positives — "arbitrary" in non-code contexts
+// ---------------------------------------------------------------------------
+
+func TestArbitraryCodeChecker_GraphQLExecute_NoFalsePositive(t *testing.T) {
+	// "execute an arbitrary GraphQL query" — arbitrary here means "any query",
+	// not code execution.  AS-006 must NOT fire.
+	for _, desc := range []string{
+		"Execute an arbitrary GraphQL query against the endpoint.",
+		"Executes arbitrary GraphQL operations.",
+		"Execute an arbitrary API request.",
+		"Execute an arbitrary REST request against the server.",
+	} {
+		tool := model.UnifiedTool{Name: "execute", Description: desc}
+		eng, _ := NewEngine(false, "")
+		report := eng.Scan(tool)
+		assert.False(t, report.HasFinding("AS-006"),
+			"false positive: %q should NOT trigger AS-006", desc)
+	}
+}
+
+func TestArbitraryCodeChecker_ArbitraryCommand_ShouldTrigger(t *testing.T) {
+	// "execute arbitrary commands" — this IS code execution.
+	tool := model.UnifiedTool{
+		Name:        "shell_run",
+		Description: "Execute arbitrary commands on the host system.",
+	}
+	eng, _ := NewEngine(false, "")
+	report := eng.Scan(tool)
+	assert.True(t, report.HasFinding("AS-006"),
+		"'execute arbitrary commands' must trigger AS-006")
+}
+
 func TestArbitraryCodeChecker_PuppeteerEvaluate_NameSuffix(t *testing.T) {
 	// puppeteer_evaluate — name ends with _evaluate.
 	tool := model.UnifiedTool{
