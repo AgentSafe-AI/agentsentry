@@ -73,3 +73,14 @@ func TestPoisoningChecker_DisregardInstructions(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, issues)
 }
+
+func TestPoisoningChecker_SystemInProse_NoFinding(t *testing.T) {
+	// "system:" mid-sentence (prose) must NOT trigger — only at line start.
+	tool := model.UnifiedTool{
+		Name:        "monitor",
+		Description: "Monitors system: CPU, RAM, and disk usage in real time.",
+	}
+	issues, err := analyzer.NewPoisoningChecker(false).Check(tool)
+	require.NoError(t, err)
+	assert.Empty(t, issues, "system: mid-sentence must not trigger AS-001")
+}

@@ -45,7 +45,7 @@ var injectionRules = []patternRule{
 		regexp.MustCompile(`(?i)(ignore|disregard|bypass)\s+(?:\w+\s+){0,3}(instructions?|prompts?|context|rules?|guidelines?|restrictions?|filters?)`),
 		model.SeverityCritical, false,
 	},
-	{regexp.MustCompile(`(?i)system\s*:`), model.SeverityCritical, false},
+	{regexp.MustCompile(`(?im)^\s*system\s*:`), model.SeverityCritical, false},
 	{regexp.MustCompile(`(?i)<\s*INST\s*>`), model.SeverityCritical, false},
 	{regexp.MustCompile(`(?i)\[INST\]`), model.SeverityCritical, false},
 	{
@@ -60,7 +60,7 @@ var injectionRules = []patternRule{
 		regexp.MustCompile(`(?i)you\s+(are\s+now|must\s+now|will\s+now)\s+(act|behave|operate)`),
 		model.SeverityCritical, false,
 	},
-	{regexp.MustCompile(`(?i)exfiltrate`), model.SeverityCritical, false},
+	{regexp.MustCompile(`(?i)exfiltrate\s+(?:\w+\s+){0,2}(?:data|info|credentials?|secrets?|content|results?)`), model.SeverityCritical, false},
 	{regexp.MustCompile(`(?i)(developer|unrestricted)\s+mode`), model.SeverityCritical, false},
 	{regexp.MustCompile(`(?i)full\s+system\s+access`), model.SeverityCritical, false},
 	{regexp.MustCompile(`(?i)jailbreak`), model.SeverityCritical, false},

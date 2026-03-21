@@ -12,7 +12,7 @@ import (
 // inputs risks them being logged, cached, or leaked in agent traces.
 var secretParamPatterns = []string{
 	"api_key", "apikey", "api_secret",
-	"password", "passwd", "pass",
+	"password", "passwd", "passphrase",
 	"token", "auth_token", "access_token", "refresh_token", "bearer",
 	"secret", "secret_key",
 	"credential", "credentials",

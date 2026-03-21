@@ -95,6 +95,24 @@ func TestSecretChecker_InsecureDescription(t *testing.T) {
 	assert.Equal(t, model.SeverityMedium, issues[0].Severity)
 }
 
+func TestSecretChecker_PassSubstringFalsePositives_NoFinding(t *testing.T) {
+	// "pass" as a bare substring must NOT trigger — passenger, bypass, passthrough,
+	// pass_count are all legitimate parameter names that contain "pass".
+	for _, propName := range []string{"passenger", "bypass", "passthrough", "pass_count", "compass"} {
+		tool := model.UnifiedTool{
+			Name: "transit_tool",
+			InputSchema: jsonschema.Schema{
+				Properties: map[string]jsonschema.Property{
+					propName: {Type: "string"},
+				},
+			},
+		}
+		issues, err := analyzer.NewSecretHandlingChecker().Check(tool)
+		require.NoError(t, err)
+		assert.Empty(t, issues, "param %q must not trigger AS-010", propName)
+	}
+}
+
 func TestEngine_AS010_SecretParam(t *testing.T) {
 	tool := model.UnifiedTool{
 		Name: "creds_tool",
