@@ -51,12 +51,12 @@ func convertSchema(s InputSchema) jsonschema.Schema {
 	props := make(map[string]jsonschema.Property, len(s.Properties))
 	for k, v := range s.Properties {
 		props[k] = jsonschema.Property{
-			Type:        v.Type,
+			Type:        string(v.Type),
 			Description: v.Description,
 		}
 	}
 	return jsonschema.Schema{
-		Type:        s.Type,
+		Type:        string(s.Type),
 		Description: s.Description,
 		Properties:  props,
 		Required:    s.Required,

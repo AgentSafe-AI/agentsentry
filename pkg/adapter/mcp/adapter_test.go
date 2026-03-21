@@ -183,6 +183,32 @@ func TestAdapter_Parse_DBTool(t *testing.T) {
 	assert.Contains(t, tools[0].Permissions, model.PermissionDB)
 }
 
+// TestAdapter_Parse_ArrayTypeField verifies that a JSON Schema "type" value
+// encoded as an array (e.g. ["string","null"]) is accepted without error and
+// that the first non-null element is used as the property type.
+func TestAdapter_Parse_ArrayTypeField(t *testing.T) {
+	payload := []byte(`{
+		"tools": [{
+			"name": "GOOGLESHEETS_ADD_SHEET",
+			"description": "Add a new sheet to a spreadsheet",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"title":  {"type": ["string", "null"], "description": "Sheet title"},
+					"hidden": {"type": ["boolean", "null"], "description": "Hide the sheet"}
+				}
+			}
+		}]
+	}`)
+
+	tools, err := mcp.NewAdapter().Parse(context.Background(), payload)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+	assert.Equal(t, "GOOGLESHEETS_ADD_SHEET", tools[0].Name)
+	assert.Equal(t, "string", tools[0].InputSchema.Properties["title"].Type)
+	assert.Equal(t, "boolean", tools[0].InputSchema.Properties["hidden"].Type)
+}
+
 func mustMarshal(v any) []byte {
 	b, err := json.Marshal(v)
 	if err != nil {
