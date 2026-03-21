@@ -1,50 +1,41 @@
 package analyzer
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
 const (
-	osvAPIURL       = "https://api.osv.dev/v1/query"
-	osvQueryTimeout = 10 * time.Second
+	osvAPIURL          = "https://api.osv.dev/v1/query"
+	osvQueryTimeout    = 10 * time.Second
+	osvTotalTimeout    = 30 * time.Second
+	lockfileFetchLimit = 5 << 20 // 5 MB per lockfile
+	maxOSVConcurrency  = 5
 )
+
+// ── Data types ────────────────────────────────────────────────────────────────
 
 // Dependency describes a package that a tool depends on.
 // Adapters should populate UnifiedTool.Metadata["dependencies"] with
 // []Dependency when the source protocol exposes package information.
+// The supply chain checker also auto-discovers deps by fetching lockfiles from
+// UnifiedTool.Metadata["repo_url"] (a GitHub repository URL).
 type Dependency struct {
 	Name      string `json:"name"`
 	Version   string `json:"version"`
 	Ecosystem string `json:"ecosystem"` // e.g. "npm", "Go", "PyPI"
 }
 
-// osvClient is an interface for querying the OSV API, enabling test mocking.
-type osvClient interface {
-	Query(ctx context.Context, dep Dependency) ([]osvVuln, error)
-}
-
-// httpOSVClient is the real HTTP implementation of osvClient.
-type httpOSVClient struct {
-	http    *http.Client
-	baseURL string
-}
-
-func newHTTPOSVClient() *httpOSVClient {
-	return &httpOSVClient{
-		http:    &http.Client{Timeout: osvQueryTimeout},
-		baseURL: osvAPIURL,
-	}
-}
-
-// osvQueryBody is the JSON body sent to the OSV batch query endpoint.
 type osvQueryBody struct {
 	Package osvPackage `json:"package"`
 	Version string     `json:"version,omitempty"`
@@ -64,11 +55,48 @@ type osvVuln struct {
 	Summary  string        `json:"summary"`
 	Severity []osvSeverity `json:"severity"`
 	Aliases  []string      `json:"aliases"`
+	Affected []osvAffected `json:"affected"` // carries fix-version info
 }
 
 type osvSeverity struct {
 	Type  string `json:"type"`
 	Score string `json:"score"`
+}
+
+// osvAffected / osvRange / osvEvent carry the fix-version chain from the OSV
+// response: affected[].ranges[].events[].fixed
+type osvAffected struct {
+	Ranges []osvRange `json:"ranges"`
+}
+
+type osvRange struct {
+	Type   string     `json:"type"`
+	Events []osvEvent `json:"events"`
+}
+
+type osvEvent struct {
+	Introduced string `json:"introduced,omitempty"`
+	Fixed      string `json:"fixed,omitempty"`
+}
+
+// ── OSV client interface ──────────────────────────────────────────────────────
+
+// osvClient is an interface for querying the OSV API, enabling test mocking.
+type osvClient interface {
+	Query(ctx context.Context, dep Dependency) ([]osvVuln, error)
+}
+
+// httpOSVClient is the real HTTP implementation of osvClient.
+type httpOSVClient struct {
+	http    *http.Client
+	baseURL string
+}
+
+func newHTTPOSVClient() *httpOSVClient {
+	return &httpOSVClient{
+		http:    &http.Client{Timeout: osvQueryTimeout},
+		baseURL: osvAPIURL,
+	}
 }
 
 func (c *httpOSVClient) Query(ctx context.Context, dep Dependency) ([]osvVuln, error) {
@@ -92,7 +120,6 @@ func (c *httpOSVClient) Query(ctx context.Context, dep Dependency) ([]osvVuln, e
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			// body close errors after a successful read are non-actionable
 			_ = closeErr
 		}
 	}()
@@ -113,34 +140,16 @@ func (c *httpOSVClient) Query(ctx context.Context, dep Dependency) ([]osvVuln, e
 	return result.Vulns, nil
 }
 
-// SupplyChainChecker queries the OSV API for known CVEs in a tool's declared
-// dependencies.  Dependencies are read from UnifiedTool.Metadata["dependencies"]
-// which adapters populate when the source protocol exposes package info.
-//
-// Rule ID: AS-004.
-type SupplyChainChecker struct {
-	client osvClient
-}
-
-// NewSupplyChainChecker returns a SupplyChainChecker using the live OSV API.
-func NewSupplyChainChecker() *SupplyChainChecker {
-	return &SupplyChainChecker{client: newHTTPOSVClient()}
-}
-
-// newSupplyChainCheckerWithClient returns a checker with a custom OSV client
-// (used in tests to inject a mock).
-func newSupplyChainCheckerWithClient(c osvClient) *SupplyChainChecker {
-	return &SupplyChainChecker{client: c}
-}
+// ── Mock client (for tests) ───────────────────────────────────────────────────
 
 // MockVuln describes a fake vulnerability returned by the mock OSV client.
 type MockVuln struct {
-	ID        string
-	Summary   string
-	CVSSScore string // CVSS v3 base score string, e.g. "9.8". Empty = no severity.
+	ID         string
+	Summary    string
+	CVSSScore  string // CVSS v3 base score string, e.g. "9.8". Empty = no severity.
+	FixVersion string // populated into affected[].ranges[].events[].fixed
 }
 
-// mockOSVClient is an in-process test double for the OSV API.
 type mockOSVClient struct {
 	vulns []MockVuln
 	err   error
@@ -156,6 +165,13 @@ func (m *mockOSVClient) Query(_ context.Context, _ Dependency) ([]osvVuln, error
 		if v.CVSSScore != "" {
 			ov.Severity = []osvSeverity{{Type: "CVSS_V3", Score: v.CVSSScore}}
 		}
+		if v.FixVersion != "" {
+			ov.Affected = []osvAffected{{
+				Ranges: []osvRange{{
+					Events: []osvEvent{{Fixed: v.FixVersion}},
+				}},
+			}}
+		}
 		out[i] = ov
 	}
 	return out, nil
@@ -167,40 +183,324 @@ func NewSupplyChainCheckerWithMock(vulns []MockVuln, queryErr error) *SupplyChai
 	return newSupplyChainCheckerWithClient(&mockOSVClient{vulns: vulns, err: queryErr})
 }
 
-// Check reads dependencies from tool.Metadata["dependencies"] and queries OSV
-// for each one.  Missing or empty metadata results in no findings.
+// ── Lockfile parsers ──────────────────────────────────────────────────────────
+
+// lockfileSpecs maps well-known lockfile paths to their parsers.
+var lockfileSpecs = []struct {
+	path  string
+	parse func([]byte) ([]Dependency, error)
+}{
+	{"package-lock.json", parsePackageLockJSON},
+	{"go.sum", parseGoSum},
+	{"requirements.txt", parseRequirementsTxt},
+}
+
+type packageLockJSON struct {
+	Packages     map[string]packageLockEntry `json:"packages"`     // npm v2/v3
+	Dependencies map[string]packageLockEntry `json:"dependencies"` // npm v1
+}
+
+type packageLockEntry struct {
+	Version string `json:"version"`
+}
+
+func parsePackageLockJSON(data []byte) ([]Dependency, error) {
+	var lock packageLockJSON
+	if err := json.Unmarshal(data, &lock); err != nil {
+		return nil, fmt.Errorf("parse package-lock.json: %w", err)
+	}
+	seen := make(map[string]bool)
+	var deps []Dependency
+
+	if len(lock.Packages) > 0 {
+		// npm v2/v3: keys are "node_modules/pkg" or nested "node_modules/a/node_modules/b"
+		for key, entry := range lock.Packages {
+			if key == "" || entry.Version == "" {
+				continue
+			}
+			name := key
+			if idx := strings.LastIndex(key, "node_modules/"); idx >= 0 {
+				name = key[idx+len("node_modules/"):]
+			}
+			k := name + "@" + entry.Version
+			if name == "" || seen[k] {
+				continue
+			}
+			seen[k] = true
+			deps = append(deps, Dependency{Name: name, Version: entry.Version, Ecosystem: "npm"})
+		}
+	} else {
+		// npm v1: flat "dependencies" map
+		for name, entry := range lock.Dependencies {
+			k := name + "@" + entry.Version
+			if entry.Version == "" || seen[k] {
+				continue
+			}
+			seen[k] = true
+			deps = append(deps, Dependency{Name: name, Version: entry.Version, Ecosystem: "npm"})
+		}
+	}
+	return deps, nil
+}
+
+func parseGoSum(data []byte) ([]Dependency, error) {
+	seen := make(map[string]bool)
+	var deps []Dependency
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	for sc.Scan() {
+		parts := strings.Fields(sc.Text())
+		if len(parts) < 2 {
+			continue
+		}
+		module, version := parts[0], parts[1]
+		if strings.HasSuffix(version, "/go.mod") {
+			continue // skip go.mod-only hash entries
+		}
+		version = strings.TrimSuffix(version, "+incompatible")
+		k := module + "@" + version
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		deps = append(deps, Dependency{Name: module, Version: version, Ecosystem: "Go"})
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("parse go.sum: %w", err)
+	}
+	return deps, nil
+}
+
+func parseRequirementsTxt(data []byte) ([]Dependency, error) {
+	var deps []Dependency
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
+			continue
+		}
+		// Strip inline comments and environment markers
+		if i := strings.IndexByte(line, '#'); i >= 0 {
+			line = strings.TrimSpace(line[:i])
+		}
+		if i := strings.IndexByte(line, ';'); i >= 0 {
+			line = strings.TrimSpace(line[:i])
+		}
+		// Only exact pins (==) are meaningful for CVE lookup
+		if idx := strings.Index(line, "=="); idx > 0 {
+			name := strings.TrimSpace(line[:idx])
+			version := strings.TrimSpace(line[idx+2:])
+			if name != "" && version != "" {
+				deps = append(deps, Dependency{Name: name, Version: version, Ecosystem: "PyPI"})
+			}
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return nil, fmt.Errorf("parse requirements.txt: %w", err)
+	}
+	return deps, nil
+}
+
+// fetchLockfileDeps fetches and parses lockfiles from a GitHub repository URL.
+// repoURL must be a https://github.com/owner/repo URL.  Non-GitHub URLs and
+// network errors are silently ignored — this is a best-effort enrichment.
+func fetchLockfileDeps(repoURL string) []Dependency {
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	var all []Dependency
+
+	for _, spec := range lockfileSpecs {
+		for _, branch := range []string{"main", "master"} {
+			rawURL, ok := rawGitHubURL(repoURL, branch, spec.path)
+			if !ok {
+				break // not a GitHub URL — skip all remaining specs too
+			}
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, http.NoBody)
+			if err != nil {
+				break
+			}
+			resp, err := client.Do(req)
+			if err != nil || resp.StatusCode != http.StatusOK {
+				if resp != nil {
+					if closeErr := resp.Body.Close(); closeErr != nil {
+						_ = closeErr
+					}
+				}
+				continue // try next branch
+			}
+			data, err := io.ReadAll(io.LimitReader(resp.Body, lockfileFetchLimit))
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				_ = closeErr
+			}
+			if err != nil {
+				continue
+			}
+			deps, err := spec.parse(data)
+			if err != nil || len(deps) == 0 {
+				continue
+			}
+			all = append(all, deps...)
+			break // found this lockfile; move to next spec
+		}
+	}
+	return all
+}
+
+// rawGitHubURL converts a github.com URL to raw.githubusercontent.com for
+// the given branch and file path.  Returns ("", false) for non-GitHub URLs.
+func rawGitHubURL(repoURL, branch, filePath string) (string, bool) {
+	clean := strings.TrimSuffix(strings.TrimSpace(repoURL), ".git")
+	clean = strings.TrimPrefix(clean, "git+")
+	if !strings.Contains(clean, "github.com/") {
+		return "", false
+	}
+	raw := strings.Replace(clean, "github.com/", "raw.githubusercontent.com/", 1)
+	return fmt.Sprintf("%s/%s/%s", raw, branch, filePath), true
+}
+
+// mergeDependencies merges two dep slices, deduplicating by ecosystem+name+version.
+func mergeDependencies(a, b []Dependency) []Dependency {
+	seen := make(map[string]bool, len(a)+len(b))
+	result := make([]Dependency, 0, len(a)+len(b))
+	for _, dep := range append(a, b...) {
+		k := dep.Ecosystem + ":" + dep.Name + "@" + dep.Version
+		if !seen[k] {
+			seen[k] = true
+			result = append(result, dep)
+		}
+	}
+	return result
+}
+
+// ── SupplyChainChecker ────────────────────────────────────────────────────────
+
+// SupplyChainChecker queries the OSV API for known CVEs in a tool's declared
+// dependencies.
+//
+//   - Dependencies from UnifiedTool.Metadata["dependencies"] are always checked.
+//   - If UnifiedTool.Metadata["repo_url"] is a GitHub URL, lockfiles are fetched
+//     (package-lock.json, go.sum, requirements.txt) and all transitive deps are
+//     also checked — turning AS-004 from decorative to functional.
+//   - MAL-* advisories (malicious packages) are always emitted as Critical.
+//   - OSV fix versions are appended to the finding description ("upgrade to X.Y.Z").
+//
+// Rule ID: AS-004.
+type SupplyChainChecker struct {
+	client osvClient
+}
+
+// NewSupplyChainChecker returns a SupplyChainChecker using the live OSV API.
+func NewSupplyChainChecker() *SupplyChainChecker {
+	return &SupplyChainChecker{client: newHTTPOSVClient()}
+}
+
+func newSupplyChainCheckerWithClient(c osvClient) *SupplyChainChecker {
+	return &SupplyChainChecker{client: c}
+}
+
+// Check queries OSV for all known dependencies and emits AS-004 findings.
 func (c *SupplyChainChecker) Check(tool model.UnifiedTool) ([]model.Issue, error) {
-	deps, err := extractDependencies(tool)
-	if err != nil || len(deps) == 0 {
+	metaDeps, err := extractDependencies(tool)
+	if err != nil {
 		return nil, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), osvQueryTimeout)
+	// Enrich with lockfile deps when a GitHub repo URL is provided.
+	var lockfileDeps []Dependency
+	if repoURL, ok := tool.Metadata["repo_url"].(string); ok && repoURL != "" {
+		lockfileDeps = fetchLockfileDeps(repoURL)
+	}
+
+	deps := mergeDependencies(metaDeps, lockfileDeps)
+	if len(deps) == 0 {
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), osvTotalTimeout)
 	defer cancel()
 
-	var issues []model.Issue
+	// Query OSV in parallel (capped at maxOSVConcurrency goroutines).
+	ch := make(chan []model.Issue, len(deps))
+	sem := make(chan struct{}, maxOSVConcurrency)
+	var wg sync.WaitGroup
+
 	for _, dep := range deps {
-		vulns, err := c.client.Query(ctx, dep)
-		if err != nil {
-			// Network failures are non-fatal: skip this dependency.
-			continue
-		}
-		for _, v := range vulns {
-			issues = append(issues, model.Issue{
-				RuleID:      "AS-004",
-				ToolName:    tool.Name,
-				Severity:    osvSeverityToModel(v),
-				Code:        "SUPPLY_CHAIN_CVE",
-				Description: fmt.Sprintf("%s in %s@%s: %s", v.ID, dep.Name, dep.Version, v.Summary),
-				Location:    fmt.Sprintf("dependency:%s", dep.Name),
-			})
-		}
+		dep := dep
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			vulns, qErr := c.client.Query(ctx, dep)
+			if qErr != nil {
+				ch <- nil
+				return
+			}
+			var issues []model.Issue
+			for _, v := range vulns {
+				issues = append(issues, buildSupplyChainIssue(v, dep, tool.Name))
+			}
+			ch <- issues
+		}()
 	}
-	return issues, nil
+
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	var allIssues []model.Issue
+	for batch := range ch {
+		allIssues = append(allIssues, batch...)
+	}
+	return allIssues, nil
 }
 
-// extractDependencies deserializes UnifiedTool.Metadata["dependencies"] into
-// a []Dependency slice.
+// buildSupplyChainIssue constructs a single AS-004 finding.
+//   - MAL-* advisories get Critical severity and code MALICIOUS_PACKAGE.
+//   - Fix version from OSV is appended when available.
+func buildSupplyChainIssue(v osvVuln, dep Dependency, toolName string) model.Issue {
+	sev := osvSeverityToModel(v)
+	code := "SUPPLY_CHAIN_CVE"
+
+	if strings.HasPrefix(v.ID, "MAL-") {
+		sev = model.SeverityCritical
+		code = "MALICIOUS_PACKAGE"
+	}
+
+	desc := fmt.Sprintf("%s in %s@%s: %s", v.ID, dep.Name, dep.Version, v.Summary)
+	if fix := extractFixVersion(v); fix != "" {
+		desc += fmt.Sprintf(" (upgrade to %s)", fix)
+	}
+
+	return model.Issue{
+		RuleID:      "AS-004",
+		ToolName:    toolName,
+		Severity:    sev,
+		Code:        code,
+		Description: desc,
+		Location:    fmt.Sprintf("dependency:%s", dep.Name),
+	}
+}
+
+// extractFixVersion returns the first fixed version from the OSV
+// affected[].ranges[].events[].fixed chain, or "" if none is present.
+func extractFixVersion(v osvVuln) string {
+	for _, a := range v.Affected {
+		for _, r := range a.Ranges {
+			for _, e := range r.Events {
+				if e.Fixed != "" {
+					return e.Fixed
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// extractDependencies deserialises UnifiedTool.Metadata["dependencies"].
 func extractDependencies(tool model.UnifiedTool) ([]Dependency, error) {
 	raw, ok := tool.Metadata["dependencies"]
 	if !ok {
@@ -217,9 +517,8 @@ func extractDependencies(tool model.UnifiedTool) ([]Dependency, error) {
 	return deps, nil
 }
 
-// osvSeverityToModel maps OSV severity information to a model.Severity.
-// OSV uses CVSS scores; in the absence of a score we default to HIGH so
-// any CVE is surfaced rather than silenced.
+// ── Severity helpers ──────────────────────────────────────────────────────────
+
 func osvSeverityToModel(v osvVuln) model.Severity {
 	for _, s := range v.Severity {
 		if s.Type == "CVSS_V3" || s.Type == "CVSS_V2" {
@@ -229,9 +528,6 @@ func osvSeverityToModel(v osvVuln) model.Severity {
 	return model.SeverityHigh // conservative default
 }
 
-// cvssScoreToSeverity maps a CVSS v3 base-score string to model.Severity.
-// CVSS base scores: None 0.0, Low 0.1–3.9, Medium 4.0–6.9, High 7.0–8.9,
-// Critical 9.0–10.0.
 func cvssScoreToSeverity(score string) model.Severity {
 	var f float64
 	if _, err := fmt.Sscanf(score, "%f", &f); err != nil {

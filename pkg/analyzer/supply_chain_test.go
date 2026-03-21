@@ -162,6 +162,48 @@ func TestSupplyChainChecker_NetworkError_Skipped(t *testing.T) {
 	assert.Empty(t, issues)
 }
 
+func TestSupplyChainChecker_MaliciousPackage_Critical(t *testing.T) {
+	checker := analyzer.NewSupplyChainCheckerWithMock([]analyzer.MockVuln{
+		{ID: "MAL-2024-1234", Summary: "Malicious package steals credentials", CVSSScore: "7.5"},
+	}, nil)
+
+	tool := model.UnifiedTool{
+		Name: "bad_tool",
+		Metadata: map[string]any{
+			"dependencies": []any{
+				map[string]any{"name": "evil-pkg", "version": "1.0.0", "ecosystem": "npm"},
+			},
+		},
+	}
+	issues, err := checker.Check(tool)
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	assert.Equal(t, "MALICIOUS_PACKAGE", issues[0].Code,
+		"MAL-* advisory must produce MALICIOUS_PACKAGE code")
+	assert.Equal(t, model.SeverityCritical, issues[0].Severity,
+		"MAL-* advisory must always be Critical regardless of CVSS score")
+}
+
+func TestSupplyChainChecker_FixVersion_AppendedToDescription(t *testing.T) {
+	checker := analyzer.NewSupplyChainCheckerWithMock([]analyzer.MockVuln{
+		{ID: "CVE-2024-1234", Summary: "RCE", CVSSScore: "9.8", FixVersion: "4.17.21"},
+	}, nil)
+
+	tool := model.UnifiedTool{
+		Name: "vuln_tool",
+		Metadata: map[string]any{
+			"dependencies": []any{
+				map[string]any{"name": "lodash", "version": "4.17.15", "ecosystem": "npm"},
+			},
+		},
+	}
+	issues, err := checker.Check(tool)
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	assert.Contains(t, issues[0].Description, "upgrade to 4.17.21",
+		"fix version must appear in description when OSV supplies one")
+}
+
 func TestSupplyChainChecker_NoSeverityScore_DefaultsToHigh(t *testing.T) {
 	checker := analyzer.NewSupplyChainCheckerWithMock([]analyzer.MockVuln{
 		{ID: "CVE-2024-9999", Summary: "Unknown severity", CVSSScore: ""},
@@ -180,4 +222,67 @@ func TestSupplyChainChecker_NoSeverityScore_DefaultsToHigh(t *testing.T) {
 	require.Len(t, issues, 1)
 	assert.Equal(t, model.SeverityHigh, issues[0].Severity,
 		"missing CVSS score should default to HIGH (conservative)")
+}
+
+// ---------------------------------------------------------------------------
+// Lockfile parser unit tests
+// ---------------------------------------------------------------------------
+
+func TestParsePackageLockJSON_V2(t *testing.T) {
+	data := []byte(`{
+  "packages": {
+    "": {"version": "1.0.0"},
+    "node_modules/lodash": {"version": "4.17.15"},
+    "node_modules/express/node_modules/qs": {"version": "6.5.2"}
+  }
+}`)
+	deps, err := analyzer.ParsePackageLockJSONForTest(data)
+	require.NoError(t, err)
+	assert.Len(t, deps, 2)
+
+	names := make(map[string]string)
+	for _, d := range deps {
+		names[d.Name] = d.Version
+		assert.Equal(t, "npm", d.Ecosystem)
+	}
+	assert.Equal(t, "4.17.15", names["lodash"])
+	assert.Equal(t, "6.5.2", names["qs"])
+}
+
+func TestParseGoSum(t *testing.T) {
+	data := []byte(`github.com/foo/bar v1.2.3 h1:abc
+github.com/foo/bar v1.2.3/go.mod h1:def
+github.com/baz/qux v0.1.0+incompatible h1:xyz
+`)
+	deps, err := analyzer.ParseGoSumForTest(data)
+	require.NoError(t, err)
+	assert.Len(t, deps, 2)
+
+	names := make(map[string]string)
+	for _, d := range deps {
+		names[d.Name] = d.Version
+		assert.Equal(t, "Go", d.Ecosystem)
+	}
+	assert.Equal(t, "v1.2.3", names["github.com/foo/bar"])
+	assert.Equal(t, "v0.1.0", names["github.com/baz/qux"], "+incompatible must be stripped")
+}
+
+func TestParseRequirementsTxt(t *testing.T) {
+	data := []byte(`# comment
+django==4.2.0
+requests>=2.28.0
+Flask==2.3.1 ; python_requires >= "3.8"
+-r other.txt
+`)
+	deps, err := analyzer.ParseRequirementsTxtForTest(data)
+	require.NoError(t, err)
+	assert.Len(t, deps, 2, "only exact == pins and no -r lines")
+
+	names := make(map[string]string)
+	for _, d := range deps {
+		names[d.Name] = d.Version
+		assert.Equal(t, "PyPI", d.Ecosystem)
+	}
+	assert.Equal(t, "4.2.0", names["django"])
+	assert.Equal(t, "2.3.1", names["Flask"])
 }
