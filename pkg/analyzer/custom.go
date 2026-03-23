@@ -98,7 +98,7 @@ func LoadCustomRules(dir string) ([]checker, error) {
 
 	var checkers []checker
 
-	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, walkErr error) error {
+	err = filepath.WalkDir(dir, func(path string, d fs.DirEntry, walkErr error) error { // #nosec G122 -- custom rules dir is user-specified; TOCTOU risk accepted for CLI tool
 		if walkErr != nil {
 			return walkErr
 		}
@@ -111,7 +111,7 @@ func LoadCustomRules(dir string) ([]checker, error) {
 			return nil
 		}
 
-		data, readErr := os.ReadFile(path)
+		data, readErr := os.ReadFile(path) // #nosec G304 -- path comes from user-specified rules directory, intentional
 		if readErr != nil {
 			return fmt.Errorf("failed to read %s: %w", path, readErr)
 		}
