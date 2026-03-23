@@ -68,9 +68,9 @@ Integrate into your CI/CD to block high-risk tools automatically:
     fail-on: "approval"
 ```
 
-## 🤖 AI Agent Integration (Claude Desktop / Cursor)
+## 🤖 AI Agent Integration (Claude Code / Cursor / Claude Desktop)
 
-Give your AI agent the ability to self-scan other MCP servers by adding ToolTrust to your `mcp.json` or `claude_desktop_config.json`:
+Give your AI agent the ability to self-scan other MCP servers by adding ToolTrust to your `.mcp.json` or `claude_desktop_config.json`:
 
 ```json
 {
@@ -83,7 +83,17 @@ Give your AI agent the ability to self-scan other MCP servers by adding ToolTrus
 }
 ```
 
-This exposes `tooltrust_scan_server` and `tooltrust_lookup` to your AI, allowing it to evaluate external tools before trusting them!
+This exposes five MCP tools to your AI agent:
+
+| Tool | Description |
+|------|-------------|
+| `tooltrust_scanner_scan` | Scan a JSON blob of tool definitions for security issues |
+| `tooltrust_scan_server` | Launch a live MCP server and scan its tools |
+| `tooltrust_scan_config` | Read your `.mcp.json` or `~/.claude.json`, scan all configured servers in parallel |
+| `tooltrust_lookup` | Look up a server's trust grade from the ToolTrust Directory |
+| `tooltrust_list_rules` | List all security rules with IDs, titles, and descriptions |
+
+**Claude Code users:** after adding ToolTrust to your `.mcp.json`, your agent can run `tooltrust_scan_config` to audit every MCP server in your project in one shot.
 
 ---
 
