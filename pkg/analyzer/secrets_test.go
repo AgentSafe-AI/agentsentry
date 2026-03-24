@@ -113,6 +113,23 @@ func TestSecretChecker_PassSubstringFalsePositives_NoFinding(t *testing.T) {
 	}
 }
 
+func TestSecretChecker_PaginationTokens_NoFalsePositive(t *testing.T) {
+	// pageToken, next_token, cursor are pagination cursors, not credentials.
+	for _, propName := range []string{"pageToken", "page_token", "next_token", "nextToken", "cursor", "next_cursor", "continuation_token", "sync_token"} {
+		tool := model.UnifiedTool{
+			Name: "list_items",
+			InputSchema: jsonschema.Schema{
+				Properties: map[string]jsonschema.Property{
+					propName: {Type: "string"},
+				},
+			},
+		}
+		issues, err := analyzer.NewSecretHandlingChecker().Check(tool)
+		require.NoError(t, err)
+		assert.Empty(t, issues, "param %q must not trigger AS-010 (pagination cursor, not secret)", propName)
+	}
+}
+
 func TestEngine_AS010_SecretParam(t *testing.T) {
 	tool := model.UnifiedTool{
 		Name: "creds_tool",

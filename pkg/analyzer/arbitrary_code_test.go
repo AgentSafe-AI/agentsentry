@@ -277,6 +277,18 @@ func TestArbitraryCodeChecker_RunShortcut_SiriShortcuts(t *testing.T) {
 		"run_shortcut must trigger AS-006")
 }
 
+func TestArbitraryCodeChecker_PythonExecute_NameSuffix(t *testing.T) {
+	// photoshop-python-api-mcp-server: tool "python_execute" should trigger AS-006.
+	tool := model.UnifiedTool{
+		Name:        "python_execute",
+		Description: "Execute a Python script in the Photoshop scripting environment.",
+	}
+	eng, _ := NewEngine(false, "")
+	report := eng.Scan(tool)
+	assert.True(t, report.HasFinding("AS-006"),
+		"python_execute must trigger AS-006 via _execute suffix")
+}
+
 func TestArbitraryCodeChecker_PuppeteerEvaluate_NameSuffix(t *testing.T) {
 	// puppeteer_evaluate — name ends with _evaluate.
 	tool := model.UnifiedTool{

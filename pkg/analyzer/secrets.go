@@ -21,6 +21,21 @@ var secretParamPatterns = []string{
 	"session_token", "session_key",
 }
 
+// secretParamAllowlist contains parameter names that match secretParamPatterns
+// but are actually pagination cursors, not credentials.
+var secretParamAllowlist = map[string]bool{
+	"pagetoken":          true,
+	"page_token":         true,
+	"next_token":         true,
+	"nexttoken":          true,
+	"cursor":             true,
+	"next_cursor":        true,
+	"nextcursor":         true,
+	"continuation_token": true,
+	"sync_token":         true,
+	"resume_token":       true,
+}
+
 // secretDescriptionPatterns detect when a tool description signals that
 // credentials are logged or stored in an insecure manner.
 var secretDescriptionPatterns = []string{
@@ -59,6 +74,9 @@ func (c *SecretHandlingChecker) Check(tool model.UnifiedTool) ([]model.Issue, er
 	// 1. Input schema: look for parameter names that indicate secrets
 	for propName := range tool.InputSchema.Properties {
 		nameLower := strings.ToLower(propName)
+		if secretParamAllowlist[nameLower] {
+			continue
+		}
 		for _, pattern := range secretParamPatterns {
 			if nameLower == pattern || strings.Contains(nameLower, pattern) {
 				issues = append(issues, model.Issue{

@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.2.1] - 2026-03-23
+
+### Fixed
+- **AS-006 false negative**: tool names ending in `_execute` (e.g. `python_execute`)
+  now correctly trigger arbitrary code execution detection.
+- **AS-010 false positives**: pagination cursor parameters (`pageToken`, `next_token`,
+  `cursor`, `continuation_token`, `sync_token`, `resume_token`) are no longer flagged
+  as secret handling risks.
+
+---
+
 ## [0.2.0] - 2026-03-22
 
 ### Added

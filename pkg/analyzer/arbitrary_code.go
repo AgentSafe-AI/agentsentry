@@ -61,6 +61,7 @@ var arbitraryCodePatterns = []*regexp.Regexp{
 var arbitraryCodeNameSuffixes = []string{
 	"_evaluate",
 	"_eval",
+	"_execute",
 	"evaluatescript",
 	"executescript",
 	"executejavascript",
