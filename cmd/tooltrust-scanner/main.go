@@ -296,9 +296,10 @@ func printPtermUI(report ScanReport) error {
 				Text: pterm.FgGreen.Sprint("✅ Pass"),
 			})
 		} else {
+			muted := policy.Action == model.ActionAllow
 			for _, issue := range policy.Score.Issues {
 				children = append(children, pterm.TreeNode{
-					Text: formatIssueLabel(issue),
+					Text: formatIssueLabel(issue, muted),
 				})
 			}
 		}
@@ -322,13 +323,13 @@ func printPtermUI(report ScanReport) error {
 	riskLine := buildRiskLine(report.Policies)
 	avgScore, avgGrade := avgRiskScore(report.Policies)
 	summaryContent := fmt.Sprintf(
-		"Total Scanned : %d\n"+
-			"  ✅ Allowed         : %d\n"+
-			"  ⚠️  Require Approval : %d\n"+
-			"  🚫 Blocked         : %d\n"+
-			"Avg Risk Score : %d (grade %s)\n"+
-			"Grade Breakdown: %s\n"+
-			"Scanned At     : %s",
+		"Total Scanned    : %d\n"+
+			"  Allowed          : %d\n"+
+			"  Require Approval : %d\n"+
+			"  Blocked          : %d\n"+
+			"Avg Risk Score   : %d (grade %s)\n"+
+			"Grade Breakdown  : %s\n"+
+			"Scanned At       : %s",
 		s.Total,
 		s.Allowed,
 		s.RequireApproval,
@@ -490,10 +491,20 @@ var ruleHint = map[string]string{
 }
 
 // formatIssueLabel returns a coloured finding line with an actionable fix hint.
-func formatIssueLabel(issue model.Issue) string {
+// When muted is true (tool is grade A / ALLOW), all findings render in gray as
+// informational — they did not affect the grade.
+func formatIssueLabel(issue model.Issue, muted bool) string {
 	wt := severityWeight[issue.Severity]
 	main := fmt.Sprintf("[%s] %s (+%d): %s", issue.RuleID, issue.Severity, wt, issue.Description)
 	hint := ruleHint[issue.RuleID]
+
+	if muted {
+		coloredMain := "ℹ️  " + pterm.FgGray.Sprint(main)
+		if hint == "" {
+			return coloredMain
+		}
+		return coloredMain + "\n       " + pterm.FgGray.Sprint(hint)
+	}
 
 	var coloredMain, coloredHint string
 	switch issue.Severity {
