@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.2.2] - 2026-03-24
+
+### Fixed
+- **Grade-A findings display**: tools that pass (grade A / ActionAllow) now show
+  findings with an `ℹ️` info icon instead of alarming ⚠️/🔴 severity emojis. Applies
+  to both the CLI scanner and the MCP binary.
+- **Summary box alignment**: removed double-width emoji characters (✅ ⚠️ 🚫) from
+  the summary box format strings; replaced with plain text labels so box borders
+  render flush in all terminal emulators.
+- **CI/CD pipeline**: `cmd/tooltrust-scanner/gate.go` was silently excluded by a
+  bare `tooltrust-scanner` entry in `.gitignore` matching the `cmd/tooltrust-scanner/`
+  path component. Fixed by anchoring to `/tooltrust-scanner` and `/tooltrust-mcp`.
+
+### Added
+- **Pre-hook integration patterns** in README: shell alias (`mcp-add`) and git
+  pre-commit hook that auto-scans new servers added to `.mcp.json`.
+
+### Changed
+- **Go toolchain bumped to go1.26.1** to resolve four stdlib vulnerabilities
+  (GO-2026-4599, GO-2026-4600, GO-2026-4601, GO-2026-4602) in `crypto/x509`,
+  `net/url`, and `os`.
+
+---
+
 ## [0.2.1] - 2026-03-23
 
 ### Fixed

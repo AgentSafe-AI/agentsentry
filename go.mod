@@ -2,6 +2,8 @@ module github.com/AgentSafe-AI/tooltrust-scanner
 
 go 1.26
 
+toolchain go1.26.1
+
 require (
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/mark3labs/mcp-go v0.44.1
