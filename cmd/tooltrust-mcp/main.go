@@ -643,19 +643,23 @@ func renderSummaryLine(result *ScanResult) string {
 	lines = append(lines, fmt.Sprintf("Findings: %s | Grades: %s",
 		strings.Join(sevParts, "  "), strings.Join(gradeParts, "  ")))
 
-	// Lines 3+: flagged tools (non-ALLOW) with their findings
+	// Lines 3+: per-tool listing with findings
 	for _, p := range result.Policies {
-		if p.Action == model.ActionAllow {
-			continue
+		var actionIcon string
+		switch p.Action {
+		case model.ActionAllow:
+			actionIcon = "✅"
+		case model.ActionRequireApproval:
+			actionIcon = "⚠️"
+		case model.ActionBlock:
+			actionIcon = "🚫"
 		}
-		var findings []string
+		lines = append(lines, fmt.Sprintf("%s %s (grade %s, score %d)",
+			actionIcon, p.ToolName, p.Score.Grade, p.Score.Score))
 		for _, issue := range p.Score.Issues {
-			findings = append(findings, fmt.Sprintf("%s %s %s: %s",
+			lines = append(lines, fmt.Sprintf("  %s %s %s: %s",
 				severityEmoji(issue.Severity), issue.RuleID, issue.Severity, issue.Description))
 		}
-		lines = append(lines, fmt.Sprintf("⚠️ %s [%s] grade=%s score=%d:\n   %s",
-			p.ToolName, p.Action, p.Score.Grade, p.Score.Score,
-			strings.Join(findings, "\n   ")))
 	}
 
 	return strings.Join(lines, "\n")

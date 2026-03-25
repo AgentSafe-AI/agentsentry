@@ -299,10 +299,9 @@ func printPtermUI(report ScanReport) error {
 				Text: pterm.FgGreen.Sprint("✅ Pass"),
 			})
 		} else {
-			muted := policy.Action == model.ActionAllow
 			for _, issue := range policy.Score.Issues {
 				children = append(children, pterm.TreeNode{
-					Text: formatIssueLabel(issue, muted),
+					Text: formatIssueLabel(issue),
 				})
 			}
 		}
@@ -539,20 +538,10 @@ var ruleHint = map[string]string{
 }
 
 // formatIssueLabel returns a coloured finding line with an actionable fix hint.
-// When muted is true (tool is grade A / ALLOW), all findings render in gray as
-// informational — they did not affect the grade.
-func formatIssueLabel(issue model.Issue, muted bool) string {
+func formatIssueLabel(issue model.Issue) string {
 	wt := severityWeight[issue.Severity]
 	main := fmt.Sprintf("[%s] %s (+%d): %s", issue.RuleID, issue.Severity, wt, issue.Description)
 	hint := ruleHint[issue.RuleID]
-
-	if muted {
-		coloredMain := "ℹ️  " + pterm.FgGray.Sprint(main)
-		if hint == "" {
-			return coloredMain
-		}
-		return coloredMain + "\n       " + pterm.FgGray.Sprint(hint)
-	}
 
 	var coloredMain, coloredHint string
 	switch issue.Severity {
