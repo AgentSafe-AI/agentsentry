@@ -187,6 +187,7 @@ func runGate(ctx context.Context, opts gateOpts) error {
 	}
 
 	pterm.Success.Printfln("Server %q installed successfully!", serverName)
+	printStarPrompt()
 	return nil
 }
 

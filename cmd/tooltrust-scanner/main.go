@@ -277,7 +277,11 @@ func writeOutput(opts scanOpts, report ScanReport) error {
 	}
 
 	// Default: text mode — render with pterm.
-	return printPtermUI(report)
+	if err := printPtermUI(report); err != nil {
+		return err
+	}
+	printStarPrompt()
+	return nil
 }
 
 // printPtermUI renders the scan report as a pterm tree + summary box.
@@ -349,6 +353,11 @@ func printPtermUI(report ScanReport) error {
 	printGradeGuide(worstGrade(report.Policies))
 
 	return nil
+}
+
+func printStarPrompt() {
+	pterm.Println()
+	pterm.Info.Println("If ToolTrust helped, star us: github.com/AgentSafe-AI/tooltrust-scanner")
 }
 
 // printSupplyChainAlert scans all findings for AS-008 BLOCK issues and prints a
