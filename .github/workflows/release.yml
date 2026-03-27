@@ -10,12 +10,38 @@ permissions:
   packages: write   # needed to push to GHCR
 
 jobs:
+  source:
+    name: Prepare Source Tree
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package source tree
+        run: tar --exclude='.git' -czf /tmp/source-tree.tar.gz .
+
+      - name: Upload source tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-tree
+          path: /tmp/source-tree.tar.gz
+          retention-days: 1
+
   # ── 1. Run tests before releasing ─────────────────────────────────────────
   test:
     name: Pre-release Tests
     runs-on: ubuntu-latest
+    needs: [source]
     steps:
-      - uses: actions/checkout@v4
+      - name: Download source tree
+        uses: actions/download-artifact@v4
+        with:
+          name: source-tree
+          path: /tmp/source
+
+      - name: Extract source tree
+        run: tar -xzf /tmp/source/source-tree.tar.gz -C "$GITHUB_WORKSPACE"
+
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
@@ -26,7 +52,7 @@ jobs:
   build:
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [source, test]
     strategy:
       matrix:
         include:
@@ -42,9 +68,14 @@ jobs:
             goarch: amd64
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Download source tree
+        uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0   # needed for `git describe`
+          name: source-tree
+          path: /tmp/source
+
+      - name: Extract source tree
+        run: tar -xzf /tmp/source/source-tree.tar.gz -C "$GITHUB_WORKSPACE"
 
       - uses: actions/setup-go@v5
         with:
@@ -94,8 +125,6 @@ jobs:
     needs: [build]
 
     steps:
-      - uses: actions/checkout@v4
-
       - name: Download all binary artifacts
         uses: actions/download-artifact@v4
         with:
@@ -119,10 +148,17 @@ jobs:
   docker:
     name: Docker Image
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [source, test]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Download source tree
+        uses: actions/download-artifact@v4
+        with:
+          name: source-tree
+          path: /tmp/source
+
+      - name: Extract source tree
+        run: tar -xzf /tmp/source/source-tree.tar.gz -C "$GITHUB_WORKSPACE"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -181,8 +217,6 @@ jobs:
             ext: ".exe"
 
     steps:
-      - uses: actions/checkout@v4
-
       - name: Download binary artifacts
         uses: actions/download-artifact@v4
         with:

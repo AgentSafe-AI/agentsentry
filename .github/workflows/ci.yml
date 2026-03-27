@@ -12,10 +12,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  source:
+    name: Prepare Source Tree
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package source tree
+        run: tar --exclude='.git' -czf /tmp/source-tree.tar.gz .
+
+      - name: Upload source tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-tree
+          path: /tmp/source-tree.tar.gz
+          retention-days: 1
+
   # ── 1. Test ────────────────────────────────────────────────────────────────
   test:
     name: Test (Go ${{ matrix.go }})
     runs-on: ubuntu-latest
+    needs: [source]
     permissions:
       id-token: write
       contents: read
@@ -25,7 +43,14 @@ jobs:
         go: ["1.26"]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Download source tree
+        uses: actions/download-artifact@v4
+        with:
+          name: source-tree
+          path: /tmp/source
+
+      - name: Extract source tree
+        run: tar -xzf /tmp/source/source-tree.tar.gz -C "$GITHUB_WORKSPACE"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -79,9 +104,17 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: [source]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Download source tree
+        uses: actions/download-artifact@v4
+        with:
+          name: source-tree
+          path: /tmp/source
+
+      - name: Extract source tree
+        run: tar -xzf /tmp/source/source-tree.tar.gz -C "$GITHUB_WORKSPACE"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -99,10 +132,17 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [source, test]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Download source tree
+        uses: actions/download-artifact@v4
+        with:
+          name: source-tree
+          path: /tmp/source
+
+      - name: Extract source tree
+        run: tar -xzf /tmp/source/source-tree.tar.gz -C "$GITHUB_WORKSPACE"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -120,10 +160,17 @@ jobs:
   self-scan:
     name: ToolTrust Self-Scan
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [source, build]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Download source tree
+        uses: actions/download-artifact@v4
+        with:
+          name: source-tree
+          path: /tmp/source
+
+      - name: Extract source tree
+        run: tar -xzf /tmp/source/source-tree.tar.gz -C "$GITHUB_WORKSPACE"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -163,9 +210,17 @@ jobs:
   verify-install:
     name: Verify Install Guide
     runs-on: ubuntu-latest
+    needs: [source]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Download source tree
+        uses: actions/download-artifact@v4
+        with:
+          name: source-tree
+          path: /tmp/source
+
+      - name: Extract source tree
+        run: tar -xzf /tmp/source/source-tree.tar.gz -C "$GITHUB_WORKSPACE"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -201,9 +256,17 @@ jobs:
   verify-install-homebrew:
     name: Verify Install (Homebrew)
     runs-on: macos-latest
+    needs: [source]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Download source tree
+        uses: actions/download-artifact@v4
+        with:
+          name: source-tree
+          path: /tmp/source
+
+      - name: Extract source tree
+        run: tar -xzf /tmp/source/source-tree.tar.gz -C "$GITHUB_WORKSPACE"
 
       - name: Install via Homebrew Formula
         run: |
