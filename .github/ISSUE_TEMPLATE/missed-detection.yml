@@ -1,0 +1,26 @@
+name: Missed Detection
+description: A tool should have been flagged but wasn't
+labels: ["missed-detection"]
+body:
+  - type: input
+    id: tool-name
+    attributes:
+      label: Tool name
+      placeholder: e.g. exfil_data
+    validations:
+      required: true
+  - type: textarea
+    id: why-should-flag
+    attributes:
+      label: Why should this be flagged?
+      description: Paste the tool description or schema if possible
+      placeholder: Describe the suspicious behaviour and which rule should cover it
+    validations:
+      required: true
+  - type: input
+    id: scanner-version
+    attributes:
+      label: Scanner version
+      placeholder: e.g. v0.2.3
+    validations:
+      required: false

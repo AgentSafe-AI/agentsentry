@@ -155,3 +155,13 @@ fi
 ---
 
 [Developer guide](docs/DEVELOPER.md) · [Contributing](docs/CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Security](docs/SECURITY.md) · [License: MIT](LICENSE) © 2026 AgentSafe-AI
+
+## Feedback
+
+Found a false positive? A tool that should be flagged but isn't?
+
+| | |
+|---|---|
+| [Report false positive](https://github.com/AgentSafe-AI/tooltrust-scanner/issues/new?template=false-positive.yml&labels=false-positive) | A tool was flagged but shouldn't be |
+| [Report missed detection](https://github.com/AgentSafe-AI/tooltrust-scanner/issues/new?template=missed-detection.yml&labels=missed-detection) | A tool should have been flagged |
+| [File a bug](https://github.com/AgentSafe-AI/tooltrust-scanner/issues/new?template=bug-report.yml&labels=bug) | Something is broken |

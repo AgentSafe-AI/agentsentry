@@ -1,0 +1,32 @@
+name: False Positive
+description: A tool was flagged but shouldn't be
+labels: ["false-positive"]
+body:
+  - type: input
+    id: tool-name
+    attributes:
+      label: Tool name
+      placeholder: e.g. gcp_bq_execute_query
+    validations:
+      required: true
+  - type: input
+    id: rule-id
+    attributes:
+      label: Rule ID that fired
+      placeholder: e.g. AS-002
+    validations:
+      required: true
+  - type: textarea
+    id: why-false-positive
+    attributes:
+      label: Why is this a false positive?
+      placeholder: Describe why this tool should not be flagged by this rule
+    validations:
+      required: true
+  - type: input
+    id: scanner-version
+    attributes:
+      label: Scanner version
+      placeholder: e.g. v0.2.3
+    validations:
+      required: false
