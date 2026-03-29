@@ -98,6 +98,43 @@ func TestHandleScanJSON_EmptyToolsList(t *testing.T) {
 	assert.Contains(t, text, "All tools are ✅ GRADE A")
 }
 
+func TestRenderTextReport_IncludesEvidenceForFlaggedTools(t *testing.T) {
+	result := &ScanResult{
+		Summary: ScanSummary{
+			Total:    1,
+			Allowed:  0,
+			Approval: 1,
+			Blocked:  0,
+		},
+		Policies: []model.GatewayPolicy{
+			{
+				ToolName: "send_env",
+				Action:   model.ActionRequireApproval,
+				Score: model.RiskScore{
+					Grade: model.GradeC,
+					Issues: []model.Issue{
+						{
+							RuleID:      "AS-002",
+							Severity:    model.SeverityHigh,
+							Description: "tool declares network permission",
+							Evidence: []model.Evidence{
+								{Kind: "permission", Value: "network"},
+								{Kind: "schema_property_count", Value: "12"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	text := renderTextReport(result)
+	assert.Contains(t, text, "Flagged Tools:")
+	assert.Contains(t, text, "Evidence: permission=network")
+	assert.Contains(t, text, "Evidence: … 1 more item(s)")
+	assert.NotContains(t, text, "schema_property_count=12")
+}
+
 // ── tooltrust_scan_server tests ─────────────────────────────────────────────
 
 func TestHandleScanServer_EmptyCommand(t *testing.T) {

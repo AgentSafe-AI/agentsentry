@@ -99,14 +99,23 @@ func (c *ArbitraryCodeChecker) Check(tool model.UnifiedTool) ([]model.Issue, err
 			strings.Contains(nameLower, strings.ReplaceAll(kw, " ", ""))
 		descMatch := strings.Contains(descLower, kw)
 		if nameMatch || descMatch {
-			return emitArbitraryCodeFinding(tool.Name), nil
+			evidence := []model.Evidence{}
+			if nameMatch {
+				evidence = append(evidence, model.Evidence{Kind: "tool_name_keyword", Value: kw})
+			}
+			if descMatch {
+				evidence = append(evidence, model.Evidence{Kind: "description_keyword", Value: kw})
+			}
+			return emitArbitraryCodeFinding(tool.Name, evidence), nil
 		}
 	}
 
 	// 2. Name-suffix patterns (e.g. chrome_evaluate, cdp_eval).
 	for _, suffix := range arbitraryCodeNameSuffixes {
 		if strings.HasSuffix(nameLower, suffix) || strings.Contains(nameLower, suffix) {
-			return emitArbitraryCodeFinding(tool.Name), nil
+			return emitArbitraryCodeFinding(tool.Name, []model.Evidence{
+				{Kind: "tool_name_suffix", Value: suffix},
+			}), nil
 		}
 	}
 
@@ -114,14 +123,18 @@ func (c *ArbitraryCodeChecker) Check(tool model.UnifiedTool) ([]model.Issue, err
 	combined := nameLower + " " + descLower
 	for _, re := range arbitraryCodePatterns {
 		if re.MatchString(combined) {
-			return emitArbitraryCodeFinding(tool.Name), nil
+			matched := re.FindString(combined)
+			return emitArbitraryCodeFinding(tool.Name, []model.Evidence{
+				{Kind: "pattern", Value: re.String()},
+				{Kind: "match", Value: matched},
+			}), nil
 		}
 	}
 
 	return nil, nil
 }
 
-func emitArbitraryCodeFinding(toolName string) []model.Issue {
+func emitArbitraryCodeFinding(toolName string, evidence []model.Evidence) []model.Issue {
 	return []model.Issue{{
 		RuleID:      "AS-006",
 		ToolName:    toolName,
@@ -129,5 +142,6 @@ func emitArbitraryCodeFinding(toolName string) []model.Issue {
 		Code:        "ARBITRARY_CODE_EXECUTION",
 		Description: "tool name or description implies arbitrary script/code execution (evaluate_script, execute javascript, etc.)",
 		Location:    "name,description",
+		Evidence:    evidence,
 	}}
 }

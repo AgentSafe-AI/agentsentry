@@ -1,6 +1,6 @@
 # Contributing to ToolTrust Scanner
 
-Thank you for your interest in contributing. This document explains how to set up your environment, submit changes, and add new scan rules or adapters.
+Thank you for your interest in contributing. This page covers local setup, branch / PR flow, and the checks we expect before review.
 
 ## Prerequisites
 
@@ -21,24 +21,22 @@ make lint
 ## Workflow
 
 1. **Fork** the repo and create a branch from `main`.
-2. **Make changes** — follow the [TDD workflow](.cursor/skills/tdd-go/SKILL.md): write failing tests first, then implement, then refactor.
+2. **Make changes** — follow the [TDD workflow](../.cursor/skills/tdd-go/SKILL.md): write failing tests first, then implement, then refactor.
 3. **Run checks** — `make test` and `make lint` must pass before committing.
 4. **Commit** — use conventional commits: `feat:`, `fix:`, `docs:`, `chore:`.
 5. **Open a PR** — target `main` and describe your change. Link any related issues.
 
-## Adding a new scan rule
+## Before opening a PR
 
-See [docs/DEVELOPER.md#adding-a-new-scan-rule](docs/DEVELOPER.md#adding-a-new-scan-rule) for the step-by-step guide. Summary:
+- Make sure tests cover the change.
+- Update user-facing docs if behavior or output changed.
+- Keep PRs scoped: one feature or one fix is much easier to review than a mixed batch.
 
-1. Create `pkg/analyzer/<rule>.go` implementing the `checker` interface.
-2. Assign the next available rule ID (e.g. `AS-006`) in each `model.Issue`.
-3. Register the checker in `NewScanner()` in `pkg/analyzer/analyzer.go`.
-4. Write `pkg/analyzer/<rule>_test.go` following TDD.
-5. Update the [Scan catalog](README.md#scan-catalog) in `README.md`.
+## Deeper implementation guides
 
-## Adding a new protocol adapter
-
-See [docs/DEVELOPER.md#adding-a-new-protocol-adapter](docs/DEVELOPER.md#adding-a-new-protocol-adapter).
+- Adding a new scan rule: [Developer guide](./DEVELOPER.md#adding-a-new-scan-rule)
+- Adding a new protocol adapter: [Developer guide](./DEVELOPER.md#adding-a-new-protocol-adapter)
+- CLI, MCP, gate, and CI examples: [Usage guide](./USAGE.md)
 
 ## Code style
 
@@ -50,7 +48,7 @@ See [docs/DEVELOPER.md#adding-a-new-protocol-adapter](docs/DEVELOPER.md#adding-a
 
 - **Bug reports** — use [GitHub Issues](https://github.com/AgentSafe-AI/tooltrust-scanner/issues).
 - **Feature requests** — open an issue with the `enhancement` label.
-- **Security** — see [SECURITY.md](SECURITY.md).
+- **Security** — see [Security policy](./SECURITY.md).
 
 ## License
 

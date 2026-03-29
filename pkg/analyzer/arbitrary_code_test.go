@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
@@ -21,6 +22,9 @@ func TestArbitraryCodeChecker_EvaluateScriptInName(t *testing.T) {
 	report := eng_56f048.Scan(tool)
 	assert.True(t, report.HasFinding("AS-006"), "evaluate_script in name must trigger AS-006")
 	assert.GreaterOrEqual(t, report.RiskScore, 25, "must score >= 25 (CRITICAL) to prevent A/S grade")
+	require.Len(t, report.Findings, 1)
+	assert.Equal(t, "tool_name_keyword", report.Findings[0].Evidence[0].Kind)
+	assert.Equal(t, "evaluate_script", report.Findings[0].Evidence[0].Value)
 }
 
 func TestArbitraryCodeChecker_ExecuteJavascriptInDescription(t *testing.T) {

@@ -48,6 +48,9 @@ func (c *PermissionChecker) Check(tool model.UnifiedTool) ([]model.Issue, error)
 			Code:        "HIGH_RISK_PERMISSION",
 			Description: fmt.Sprintf("tool declares %s permission", perm),
 			Location:    "permissions",
+			Evidence: []model.Evidence{
+				{Kind: "permission", Value: string(perm)},
+			},
 		})
 	}
 
@@ -59,6 +62,10 @@ func (c *PermissionChecker) Check(tool model.UnifiedTool) ([]model.Issue, error)
 			Code:        "LARGE_INPUT_SURFACE",
 			Description: fmt.Sprintf("input schema exposes %d properties (threshold: %d)", propCount, largeSchemaPropThreshold),
 			Location:    "inputSchema",
+			Evidence: []model.Evidence{
+				{Kind: "schema_property_count", Value: fmt.Sprintf("%d", propCount)},
+				{Kind: "schema_property_threshold", Value: fmt.Sprintf("%d", largeSchemaPropThreshold)},
+			},
 		})
 	}
 

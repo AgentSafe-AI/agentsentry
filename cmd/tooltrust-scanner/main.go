@@ -572,9 +572,37 @@ func formatIssueLabel(issue model.Issue) string {
 	}
 
 	if hint == "" {
-		return coloredMain
+		return joinIssueDetailLines(coloredMain, issueEvidenceLines(issue))
 	}
-	return coloredMain + "\n       " + coloredHint
+	return joinIssueDetailLines(coloredMain, issueEvidenceLines(issue), []string{coloredHint})
+}
+
+func issueEvidenceLines(issue model.Issue) []string {
+	if len(issue.Evidence) == 0 {
+		return nil
+	}
+
+	maxEvidence := 1
+	lines := make([]string, 0, maxEvidence+1)
+	for i, evidence := range issue.Evidence {
+		if i >= maxEvidence {
+			remaining := len(issue.Evidence) - maxEvidence
+			lines = append(lines, pterm.FgGray.Sprint(fmt.Sprintf("… %d more evidence item(s)", remaining)))
+			break
+		}
+		lines = append(lines, pterm.FgGray.Sprint(fmt.Sprintf("Evidence: %s=%s", evidence.Kind, evidence.Value)))
+	}
+	return lines
+}
+
+func joinIssueDetailLines(main string, groups ...[]string) string {
+	lines := []string{main}
+	for _, group := range groups {
+		for _, line := range group {
+			lines = append(lines, "       "+line)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // buildRiskLine builds a compact risk summary string e.g. "A×3  B×1  F×1".

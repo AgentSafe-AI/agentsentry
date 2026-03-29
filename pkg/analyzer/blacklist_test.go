@@ -46,6 +46,11 @@ func TestBlacklist_LiteLLM_ExactVersion_Hit(t *testing.T) {
 	assert.Contains(t, issues[0].Description, "litellm@1.82.8")
 	assert.Contains(t, issues[0].Description, "SNYK-PYTHON-LITELLM-15762713")
 	assert.Contains(t, issues[0].Description, "[BLOCK]")
+	require.Len(t, issues[0].Evidence, 5)
+	assert.Equal(t, "package", issues[0].Evidence[0].Kind)
+	assert.Equal(t, "litellm", issues[0].Evidence[0].Value)
+	assert.Equal(t, "version", issues[0].Evidence[1].Kind)
+	assert.Equal(t, "1.82.8", issues[0].Evidence[1].Value)
 }
 
 func TestBlacklist_LiteLLM_OtherAffectedVersion_Hit(t *testing.T) {

@@ -664,6 +664,9 @@ func renderTextReport(result *ScanResult) string {
 		for _, issue := range p.Score.Issues {
 			lines = append(lines, fmt.Sprintf("  [%s] %s: %s",
 				issue.RuleID, issue.Severity, humanizeIssue(issue)))
+			for _, detail := range renderIssueEvidence(issue) {
+				lines = append(lines, "    "+detail)
+			}
 		}
 		if actionNow, saferConfig := recommendationForPolicy(p); actionNow != "" || saferConfig != "" {
 			if actionNow != "" {
@@ -704,6 +707,24 @@ func humanizeIssue(issue model.Issue) string {
 	default:
 		return issue.Description
 	}
+}
+
+func renderIssueEvidence(issue model.Issue) []string {
+	if len(issue.Evidence) == 0 {
+		return nil
+	}
+
+	maxEvidence := 1
+	details := make([]string, 0, maxEvidence+1)
+	for i, evidence := range issue.Evidence {
+		if i >= maxEvidence {
+			remaining := len(issue.Evidence) - maxEvidence
+			details = append(details, fmt.Sprintf("Evidence: … %d more item(s)", remaining))
+			break
+		}
+		details = append(details, fmt.Sprintf("Evidence: %s=%s", evidence.Kind, evidence.Value))
+	}
+	return details
 }
 
 func recommendationForPolicy(policy model.GatewayPolicy) (actionNow, saferConfig string) {

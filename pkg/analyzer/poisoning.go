@@ -111,6 +111,7 @@ func (c *PoisoningChecker) Check(tool model.UnifiedTool) ([]model.Issue, error) 
 			continue
 		}
 		if rule.pattern.MatchString(desc) {
+			matched := rule.pattern.FindString(desc)
 			issues = append(issues, model.Issue{
 				RuleID:      "AS-001",
 				ToolName:    tool.Name,
@@ -118,6 +119,10 @@ func (c *PoisoningChecker) Check(tool model.UnifiedTool) ([]model.Issue, error) 
 				Code:        "TOOL_POISONING",
 				Description: "possible prompt injection detected in tool description: pattern matched: " + rule.pattern.String(),
 				Location:    "description",
+				Evidence: []model.Evidence{
+					{Kind: "description_pattern", Value: rule.pattern.String()},
+					{Kind: "description_match", Value: matched},
+				},
 			})
 			// One finding per tool is sufficient for a poisoning verdict.
 			break
@@ -133,6 +138,9 @@ func (c *PoisoningChecker) Check(tool model.UnifiedTool) ([]model.Issue, error) 
 				Code:        "TOOL_POISONING",
 				Description: "semantic AI analysis detected deep prompt injection in tool description",
 				Location:    "description",
+				Evidence: []model.Evidence{
+					{Kind: "deep_scan", Value: "semantic prompt injection signal in description"},
+				},
 			})
 		}
 	}

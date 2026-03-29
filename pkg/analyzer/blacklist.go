@@ -191,6 +191,13 @@ func buildBlacklistIssue(entry blacklistEntry, dep Dependency, toolName string) 
 		Code:        code,
 		Description: desc,
 		Location:    fmt.Sprintf("dependency:%s@%s", dep.Name, dep.Version),
+		Evidence: []model.Evidence{
+			{Kind: "package", Value: dep.Name},
+			{Kind: "version", Value: dep.Version},
+			{Kind: "ecosystem", Value: dep.Ecosystem},
+			{Kind: "blacklist_entry", Value: entry.ID},
+			{Kind: "blacklist_action", Value: entry.Action},
+		},
 	}
 }
 

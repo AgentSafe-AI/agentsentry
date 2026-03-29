@@ -34,6 +34,9 @@ func TestPermissionChecker_ExecPermission_HighRisk(t *testing.T) {
 	require.NotEmpty(t, issues)
 	assert.Equal(t, "HIGH_RISK_PERMISSION", issues[0].Code)
 	assert.Equal(t, model.SeverityHigh, issues[0].Severity)
+	require.Len(t, issues[0].Evidence, 1)
+	assert.Equal(t, "permission", issues[0].Evidence[0].Kind)
+	assert.Equal(t, "exec", issues[0].Evidence[0].Value)
 }
 
 func TestPermissionChecker_DBPermission_MediumRisk(t *testing.T) {
@@ -70,6 +73,9 @@ func TestPermissionChecker_SchemaPropCountNote(t *testing.T) {
 	for _, iss := range issues {
 		if iss.Code == "LARGE_INPUT_SURFACE" {
 			found = true
+			require.Len(t, iss.Evidence, 2)
+			assert.Equal(t, "schema_property_count", iss.Evidence[0].Kind)
+			assert.Equal(t, "15", iss.Evidence[0].Value)
 		}
 	}
 	assert.True(t, found, "expected LARGE_INPUT_SURFACE issue for schemas with >10 properties")

@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
 func TestCheckFailOn_Empty(t *testing.T) {
@@ -48,4 +50,20 @@ func TestCheckFailOn_InvalidValue(t *testing.T) {
 	err := checkFailOn("bogus", ScanSummary{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid --fail-on")
+}
+
+func TestFormatIssueLabel_IncludesCompactEvidence(t *testing.T) {
+	label := formatIssueLabel(model.Issue{
+		RuleID:      "AS-002",
+		Severity:    model.SeverityHigh,
+		Description: "tool declares network permission",
+		Evidence: []model.Evidence{
+			{Kind: "permission", Value: "network"},
+			{Kind: "schema_property_count", Value: "12"},
+		},
+	})
+
+	assert.Contains(t, label, "Evidence: permission=network")
+	assert.Contains(t, label, "… 1 more evidence item(s)")
+	assert.NotContains(t, label, "schema_property_count=12")
 }

@@ -32,6 +32,9 @@ func TestPoisoningChecker_IgnorePrevious(t *testing.T) {
 	require.NotEmpty(t, issues)
 	assert.Equal(t, "TOOL_POISONING", issues[0].Code)
 	assert.Equal(t, model.SeverityCritical, issues[0].Severity)
+	require.Len(t, issues[0].Evidence, 2)
+	assert.Equal(t, "description_pattern", issues[0].Evidence[0].Kind)
+	assert.Contains(t, issues[0].Evidence[1].Value, "Ignore previous instructions")
 }
 
 func TestPoisoningChecker_SystemColon(t *testing.T) {

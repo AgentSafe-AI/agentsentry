@@ -41,13 +41,19 @@ func GradeFromScore(score int) Grade {
 }
 
 // Issue describes a single risk finding detected during analysis.
+type Evidence struct {
+	Kind  string `json:"kind"`
+	Value string `json:"value"`
+}
+
 type Issue struct {
-	RuleID      string   `json:"rule_id"` // unique rule identifier, e.g. "AS-001"
-	Severity    Severity `json:"severity"`
-	Code        string   `json:"code"` // e.g. "TOOL_POISONING", "SCOPE_MISMATCH"
-	Description string   `json:"description,omitempty"`
-	Location    string   `json:"location,omitempty"`
-	ToolName    string   `json:"tool_name,omitempty"`
+	RuleID      string     `json:"rule_id"` // unique rule identifier, e.g. "AS-001"
+	Severity    Severity   `json:"severity"`
+	Code        string     `json:"code"` // e.g. "TOOL_POISONING", "SCOPE_MISMATCH"
+	Description string     `json:"description,omitempty"`
+	Location    string     `json:"location,omitempty"`
+	ToolName    string     `json:"tool_name,omitempty"`
+	Evidence    []Evidence `json:"evidence,omitempty"`
 }
 
 // RiskScore is the aggregated result of running all analyzers on a UnifiedTool.

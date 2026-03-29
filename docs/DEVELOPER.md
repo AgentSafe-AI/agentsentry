@@ -1,10 +1,8 @@
 # ToolTrust Scanner — Developer Guide
 
-## Prerequisites
+This guide is for people changing ToolTrust internals: analyzers, adapters, output formats, and core data structures.
 
-- Go 1.26+ — [install](https://go.dev/dl/)
-- `golangci-lint` v2 — `brew install golangci-lint` or see [golangci-lint docs](https://golangci-lint.run/usage/install/)
-- Docker (optional, for image builds)
+For local setup, branch / PR flow, and required checks, use [Contributing](./CONTRIBUTING.md).
 
 ## Architecture
 
@@ -50,21 +48,14 @@ github.com/AgentSafe-AI/tooltrust-scanner
 └── Makefile
 ```
 
-## Make targets
+## Key commands
 
 ```bash
 make test           # race detector + all packages — required before every commit
-make test-verbose   # with -v flag
-make coverage       # ≥60% threshold enforced on pkg/ + internal/
-make coverage-html  # open HTML report in browser
 make lint           # golangci-lint (v2)
 make fmt            # go fmt ./...
-make vet            # go vet ./...
 make build          # compile dist/tooltrust-scanner + dist/tooltrust-scanner-mcp
-make cross-compile  # linux/amd64 · linux/arm64 · darwin/amd64 · darwin/arm64 · windows/amd64
-make docker         # build ghcr.io/agentsafe-ai/tooltrust-scanner:dev
 make scan           # self-scan testdata/tools.json (integration check)
-make clean          # remove dist/ + coverage files
 ```
 
 ## TDD workflow
@@ -75,6 +66,12 @@ Full guide: [`.cursor/skills/tdd-go/SKILL.md`](../.cursor/skills/tdd-go/SKILL.md
 1. **RED** — Write a failing `_test.go` that defines the contract.
 2. **GREEN** — Write the minimal code to make it pass (ugly is fine).
 3. **REFACTOR** — Clean up; `make test` must still exit 0.
+
+Keep the change loop small:
+
+1. Write or update the failing test first.
+2. Make the smallest implementation change that turns it green.
+3. Refactor only after tests pass.
 
 `make test` must exit 0 before every commit. CI enforces this.
 
@@ -89,7 +86,9 @@ Full guide: [`.cursor/skills/tdd-go/SKILL.md`](../.cursor/skills/tdd-go/SKILL.md
 2. Assign the next available rule ID (e.g. `AS-006`) in each `model.Issue` you return.
 3. Register the checker in `NewScanner()` inside `pkg/analyzer/analyzer.go`.
 4. Write `pkg/analyzer/<rule>_test.go` — start with the failing test (RED).
-5. Update the [Scan catalog](../README.md#scan-catalog) in `README.md`.
+5. Update any user-facing rule references if behavior changed:
+   - [README](../README.md)
+   - [Rules catalog](./RULES.md)
 
 ## ToolTrust Directory JSON schema
 
@@ -141,20 +140,11 @@ All scan output conforms to `schema_version: "1.0"`:
 2. Write a `_test.go` with table-driven cases for valid + invalid inputs.
 3. Wire it into `cmd/tooltrust-scanner/main.go`'s `switch protocol { ... }`.
 
-## CI/CD
+## Notes for docs and UX changes
 
-| Workflow | Triggers | Key jobs |
-|----------|----------|----------|
-| `ci.yml` | push/PR to main | test (race), coverage ≥60%, lint, build, self-scan |
-| `release.yml` | `v*.*.*` tags | cross-compile, GitHub Release, Docker push to GHCR |
-| `security.yml` | push/PR + weekly | govulncheck, gosec (SARIF), dependency-review, meta-scan |
-
-## Release process
-
-1. Ensure `main` is green: `make test && make lint`
-2. Update [CHANGELOG.md](../CHANGELOG.md): move items from `[Unreleased]` to a new version section
-3. Commit changelog: `git add CHANGELOG.md && git commit -m "chore: release v0.1.3"`
-4. Tag: `git tag v0.1.3`
-5. Push tag: `git push origin v0.1.3`
-6. Release workflow runs: builds `tooltrust-scanner_*` and `tooltrust-scanner-mcp_*` binaries, creates GitHub Release, pushes Docker image
-7. If using Homebrew [Formula](../Formula/tooltrust-scanner.rb): update `url` and `sha256` (run `shasum -a 256` on the new tarball)
+- If you change CLI or MCP report output, update snapshots or output examples in:
+  - [README](../README.md)
+  - [npm README](../npm/README.md)
+- If you add a rule or change rule semantics, update:
+  - [Rules catalog](./RULES.md)
+  - [Usage guide](./USAGE.md) when flags or examples change
