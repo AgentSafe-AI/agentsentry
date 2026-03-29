@@ -4,7 +4,7 @@
 [![Security](https://github.com/AgentSafe-AI/tooltrust-scanner/actions/workflows/security.yml/badge.svg)](https://github.com/AgentSafe-AI/tooltrust-scanner/actions/workflows/security.yml)
 [![GitHub stars](https://img.shields.io/github/stars/AgentSafe-AI/tooltrust-scanner?style=social)](https://github.com/AgentSafe-AI/tooltrust-scanner/stargazers)
 [![Go Report Card](https://goreportcard.com/badge/github.com/AgentSafe-AI/tooltrust-scanner)](https://goreportcard.com/report/github.com/AgentSafe-AI/tooltrust-scanner)
-[![npm](https://img.shields.io/npm/v/tooltrust-mcp?label=npm&color=cb0000)](https://www.npmjs.com/package/tooltrust-mcp)
+[![npm](https://img.shields.io/npm/v/tooltrust-mcp?label=npm)](https://www.npmjs.com/package/tooltrust-mcp)
 [![npm downloads](https://img.shields.io/npm/dm/tooltrust-mcp?label=npm%20downloads)](https://www.npmjs.com/package/tooltrust-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
