@@ -12,7 +12,7 @@ We build open-source tools that let you see the risks before your agent acts on 
 
 ### ToolTrust Scanner
 
-Static security scanner for MCP server tool definitions. 11 security rules. Battle-tested against 400+ production servers.
+Static security scanner for MCP server tool definitions. 13 security rules. Battle-tested against hundreds of production servers.
 
 ```bash
 # Add to your .mcp.json — your agent scans its own tools

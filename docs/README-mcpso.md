@@ -45,7 +45,7 @@ Then ask your agent to:
 - Typosquatting, tool shadowing, and insecure secret handling
 - Missing rate-limit, timeout, or retry configuration on risky tools
 
-Full rule catalog: [Developer Guide](https://github.com/AgentSafe-AI/tooltrust-scanner/blob/main/docs/DEVELOPER.md) · [tooltrust.dev](https://www.tooltrust.dev/)
+Full rule catalog: [Security Rules](https://github.com/AgentSafe-AI/tooltrust-scanner/blob/main/docs/RULES.md) · [tooltrust.dev](https://www.tooltrust.dev/)
 
 ## More Ways to Use ToolTrust
 
