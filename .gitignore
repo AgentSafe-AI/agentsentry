@@ -19,6 +19,8 @@ go.work.sum
 .env
 .env.*
 !.env.example
+.mcpregistry_github_token
+.mcpregistry_registry_token
 
 # Editor
 .idea/

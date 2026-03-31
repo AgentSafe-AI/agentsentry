@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.AgentSafe-AI/tooltrust-scanner",
+  "title": "ToolTrust Scanner",
+  "description": "Scans MCP servers for prompt injection, data exfiltration, and privilege escalation.",
+  "repository": {
+    "url": "https://github.com/AgentSafe-AI/tooltrust-scanner",
+    "source": "github"
+  },
+  "version": "1.0.9",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "tooltrust-mcp",
+      "version": "1.0.9",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
