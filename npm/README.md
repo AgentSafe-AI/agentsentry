@@ -1,8 +1,20 @@
 # tooltrust-mcp
 
-MCP server that scans other MCP servers for prompt injection, supply chain attacks, excessive permissions, and privilege escalation. Add to your `.mcp.json` and let your AI agent audit its own tools.
+[![tooltrust-scanner MCP server](https://glama.ai/mcp/servers/AgentSafe-AI/tooltrust-scanner/badges/score.svg)](https://glama.ai/mcp/servers/AgentSafe-AI/tooltrust-scanner)
+[![npm](https://img.shields.io/npm/v/tooltrust-mcp?label=npm&color=blue)](https://www.npmjs.com/package/tooltrust-mcp)
+
+Scan MCP servers for prompt injection, data exfiltration, risky permissions, supply-chain threats, and privilege escalation before your agent blindly trusts them.
 
 > **First run** downloads a ~10MB Go binary from GitHub Releases and caches it at `~/.tooltrust-mcp/bin/`. Subsequent runs use the cached binary with no download.
+
+## What it catches
+
+- Prompt injection and tool poisoning hidden in descriptions
+- Excessive permissions such as `exec`, `network`, `db`, and `fs`
+- Supply-chain CVEs and known compromised package versions
+- Privilege escalation and arbitrary code execution patterns
+- Typosquatting, tool shadowing, and insecure secret handling
+- Missing rate-limit, timeout, or retry configuration on risky tools
 
 ## Quick start
 
@@ -48,5 +60,6 @@ Flagged Tools:
 ## Links
 
 - **GitHub:** https://github.com/AgentSafe-AI/tooltrust-scanner
+- **Glama:** https://glama.ai/mcp/servers/AgentSafe-AI/tooltrust-scanner
 - **Directory:** https://www.tooltrust.dev/
 - **Rules:** https://github.com/AgentSafe-AI/tooltrust-scanner/blob/main/docs/RULES.md
