@@ -38,9 +38,8 @@ COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=builder /out/tooltrust-scanner     /usr/local/bin/tooltrust-scanner
 COPY --from=builder /out/tooltrust-mcp /usr/local/bin/tooltrust-mcp
 
-# Default: run the CLI
-ENTRYPOINT ["/usr/local/bin/tooltrust-scanner"]
-CMD ["--help"]
+# Default: run the MCP server so registries like Glama can inspect it.
+ENTRYPOINT ["/usr/local/bin/tooltrust-mcp"]
 
 # Metadata labels (OCI standard)
 LABEL org.opencontainers.image.title="ToolTrust Scanner"
