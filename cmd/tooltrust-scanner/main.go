@@ -305,7 +305,7 @@ func printPtermUI(report ScanReport) error {
 		} else {
 			if reason := summarizeToolReason(policy); reason != "" {
 				children = append(children, pterm.TreeNode{
-					Text: pterm.FgGray.Sprint("Reason: " + reason),
+					Text: pterm.FgGray.Sprint(toolReasonLabel(policy) + reason),
 				})
 			}
 			shownHints := map[string]bool{}
@@ -545,6 +545,17 @@ func summarizeToolReason(policy model.GatewayPolicy) string {
 	return strings.Join(parts, " + ")
 }
 
+func toolReasonLabel(policy model.GatewayPolicy) string {
+	switch policy.Action {
+	case model.ActionRequireApproval:
+		return "Why approval: "
+	case model.ActionBlock:
+		return "Why blocked: "
+	default:
+		return "Why flagged: "
+	}
+}
+
 func summarizeIssueReason(issue model.Issue) string {
 	switch issue.RuleID {
 	case "AS-002":
@@ -585,8 +596,8 @@ func formatToolLabel(policy model.GatewayPolicy) string {
 	if policy.Action == model.ActionAllow && policy.Score.Grade == model.GradeA {
 		return fmt.Sprintf("%s  %s", pterm.Bold.Sprint(name), badge)
 	}
-	scoreStr := fmt.Sprintf("score=%d grade=%s", policy.Score.Score, policy.Score.Grade)
-	return fmt.Sprintf("%s  %s  %s", pterm.Bold.Sprint(name), badge, pterm.FgGray.Sprint(scoreStr))
+	gradeStr := fmt.Sprintf("grade=%s", policy.Score.Grade)
+	return fmt.Sprintf("%s  %s  %s", pterm.Bold.Sprint(name), badge, pterm.FgGray.Sprint(gradeStr))
 }
 
 // ruleHint returns a short, specific fix hint for each rule ID.

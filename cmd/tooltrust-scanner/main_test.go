@@ -67,7 +67,7 @@ func TestFormatToolLabel_HidesScoreForAllowGradeA(t *testing.T) {
 	assert.NotContains(t, label, "grade=A")
 }
 
-func TestFormatToolLabel_KeepsScoreForApproval(t *testing.T) {
+func TestFormatToolLabel_KeepsGradeForApproval(t *testing.T) {
 	label := formatToolLabel(model.GatewayPolicy{
 		ToolName: "search_files",
 		Action:   model.ActionRequireApproval,
@@ -78,8 +78,8 @@ func TestFormatToolLabel_KeepsScoreForApproval(t *testing.T) {
 	})
 
 	assert.Contains(t, label, "[APPROVAL]")
-	assert.Contains(t, label, "score=25")
 	assert.Contains(t, label, "grade=C")
+	assert.NotContains(t, label, "score=25")
 }
 
 func TestFormatIssueLabel_HidesRedundantEvidenceForAllowGradeA(t *testing.T) {
@@ -198,4 +198,12 @@ func TestSummarizeToolReason_ForApproval(t *testing.T) {
 	})
 
 	assert.Equal(t, "fs permission + network permission + missing rate-limit/timeout", reason)
+}
+
+func TestToolReasonLabel_ForApproval(t *testing.T) {
+	assert.Equal(t, "Why approval: ", toolReasonLabel(model.GatewayPolicy{Action: model.ActionRequireApproval}))
+}
+
+func TestToolReasonLabel_ForBlock(t *testing.T) {
+	assert.Equal(t, "Why blocked: ", toolReasonLabel(model.GatewayPolicy{Action: model.ActionBlock}))
 }
