@@ -38,7 +38,7 @@ These entries currently map to `AS-016`.
 
 ## Candidate Flow
 
-1. Threat-intel monitor opens an issue for a new incident or blog post.
+1. Threat-intel monitor opens an issue for a new incident or blog post and writes a draft candidate file under `.github/ioc-candidates/`.
 2. Maintainer extracts candidate IOCs into a structured candidate JSON file.
 3. Candidate is reviewed and classified:
    - `promote_to: blacklist`
@@ -47,6 +47,25 @@ These entries currently map to `AS-016`.
 4. Maintainer adds the reviewed entry to the scanner data file.
 5. Tests are updated to cover the new signal.
 6. A scanner release/tag is cut so ToolTrust Directory can consume the update.
+
+## Promotion Helper
+
+ToolTrust includes a small helper for the most common promotion path:
+
+```bash
+go run ./cmd/tooltrust-ioc-promote .github/ioc-candidates.example.json
+```
+
+Current behavior:
+
+- validates basic candidate structure
+- promotes `promote_to: npm_iocs` entries into `pkg/analyzer/data/npm_iocs.json`
+- promotes `promote_to: blacklist` entries into `pkg/analyzer/data/blacklist.json` when version and action fields are present
+- skips unsupported candidate types rather than guessing
+
+This keeps the first promotion path simple and deterministic. Promotion into
+`blacklist.json` remains intentionally stricter than IOC promotion: confirmed
+versions, action, severity, and a stable blacklist identifier are required.
 
 ## Candidate Schema
 

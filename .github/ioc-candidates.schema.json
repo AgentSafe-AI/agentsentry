@@ -20,7 +20,12 @@
     "properties": {
       "ecosystem": {
         "type": "string",
-        "enum": ["npm", "PyPI", "Go", "github-actions"]
+        "enum": [
+          "npm",
+          "PyPI",
+          "Go",
+          "github-actions"
+        ]
       },
       "ioc_type": {
         "type": "string",
@@ -40,7 +45,11 @@
       },
       "confidence": {
         "type": "string",
-        "enum": ["low", "medium", "high"]
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ]
       },
       "reason": {
         "type": "string",
@@ -56,14 +65,48 @@
       },
       "suggested_action": {
         "type": "string",
-        "enum": ["watch", "flag", "block"]
+        "enum": [
+          "watch",
+          "flag",
+          "block"
+        ]
       },
       "promote_to": {
         "type": "string",
-        "enum": ["watch_only", "npm_iocs", "blacklist"]
+        "enum": [
+          "watch_only",
+          "npm_iocs",
+          "blacklist"
+        ]
       },
       "notes": {
         "type": "string"
+      },
+      "blacklist_id": {
+        "type": "string"
+      },
+      "affected_versions": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "BLOCK",
+          "WARN"
+        ]
+      },
+      "severity": {
+        "type": "string",
+        "enum": [
+          "CRITICAL",
+          "HIGH",
+          "MEDIUM",
+          "LOW"
+        ]
       }
     }
   }

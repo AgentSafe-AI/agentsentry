@@ -10,5 +10,24 @@
     "suggested_action": "flag",
     "promote_to": "npm_iocs",
     "notes": "Promote to blacklist only when affected versions are confirmed."
+  },
+  {
+    "ecosystem": "npm",
+    "ioc_type": "package_name",
+    "value": "axios",
+    "confidence": "high",
+    "reason": "Confirmed malicious npm publish with attacker-controlled dependency changes.",
+    "source": "https://github.com/axios/axios",
+    "first_seen": "2026-03-31",
+    "suggested_action": "block",
+    "promote_to": "blacklist",
+    "blacklist_id": "AXIOS-NPM-COMPROMISE-2026-03-31",
+    "affected_versions": [
+      "1.14.1",
+      "0.30.4"
+    ],
+    "action": "BLOCK",
+    "severity": "CRITICAL",
+    "notes": "Use blacklist promotion only when the affected versions are confirmed."
   }
 ]
