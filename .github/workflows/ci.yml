@@ -86,12 +86,17 @@ jobs:
           go tool cover -func=coverage.out >> $GITHUB_STEP_SUMMARY
 
       - name: Upload coverage to Codecov
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: codecov/codecov-action@v4
         with:
           use_oidc: true
           files: coverage.out
           flags: unittests
           fail_ci_if_error: false   # don't break CI if Codecov is unreachable
+
+      - name: Skip Codecov on fork pull requests
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: echo "Skipping Codecov upload for fork PR because GitHub does not expose the OIDC token in this context."
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
