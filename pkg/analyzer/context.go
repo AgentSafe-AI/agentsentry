@@ -72,16 +72,16 @@ func SummarizeToolContext(tool model.UnifiedTool) (behavior, destinations []stri
 	}
 
 	for _, match := range hardcodedURLPattern.FindAllString(string(tool.RawSource), -1) {
-		addHardcodedDomain(destinationSet, match)
+		addHardcodedDestination(destinationSet, match)
 	}
 	for _, match := range hardcodedURLPattern.FindAllString(tool.Description, -1) {
-		addHardcodedDomain(destinationSet, match)
+		addHardcodedDestination(destinationSet, match)
 	}
 	for _, match := range hardcodedHostPattern.FindAllString(string(tool.RawSource), -1) {
-		addHardcodedDomain(destinationSet, match)
+		addHardcodedDestination(destinationSet, match)
 	}
 	for _, match := range hardcodedHostPattern.FindAllString(tool.Description, -1) {
-		addHardcodedDomain(destinationSet, match)
+		addHardcodedDestination(destinationSet, match)
 	}
 	for _, match := range hardcodedEmailPattern.FindAllString(string(tool.RawSource), -1) {
 		addHardcodedEmailRecipient(destinationSet, match)
@@ -93,6 +93,24 @@ func SummarizeToolContext(tool model.UnifiedTool) (behavior, destinations []stri
 	behavior = sortedKeys(behaviorSet)
 	destinations = sortedKeys(destinationSet)
 	return behavior, destinations
+}
+
+func addHardcodedDestination(destinations map[string]bool, match string) {
+	host := normalizeHost(match)
+	if host == "" {
+		return
+	}
+	if shouldIgnoreHost(host) {
+		return
+	}
+	switch classifyHardcodedDestination(match, host) {
+	case "webhook":
+		destinations["hardcoded webhook endpoint: "+host] = true
+	case "api":
+		destinations["hardcoded API endpoint: "+host] = true
+	default:
+		destinations["hardcoded domain: "+host] = true
+	}
 }
 
 func classifyDynamicDestination(propName string) string {
@@ -124,20 +142,39 @@ func addHardcodedEmailRecipient(destinations map[string]bool, match string) {
 	}
 	destinations["hardcoded email recipient: "+email] = true
 	if parts := strings.SplitN(email, "@", 2); len(parts) == 2 {
-		addHardcodedDomain(destinations, parts[1])
+		addHardcodedDestination(destinations, parts[1])
 	}
 }
 
-func addHardcodedDomain(destinations map[string]bool, match string) {
+func normalizeHost(match string) string {
 	host := strings.TrimSpace(match)
 	host = strings.TrimPrefix(host, "https://")
 	host = strings.TrimPrefix(host, "http://")
 	host = strings.SplitN(host, "/", 2)[0]
 	host = strings.TrimSuffix(host, ".")
-	if host == "" {
-		return
+	return host
+}
+
+func classifyHardcodedDestination(raw, host string) string {
+	rawLower := strings.ToLower(raw)
+	hostLower := strings.ToLower(host)
+
+	if strings.Contains(rawLower, "webhook") || strings.Contains(hostLower, "hooks.") || strings.Contains(hostLower, "webhook") {
+		return "webhook"
 	}
-	destinations["hardcoded domain: "+host] = true
+	if strings.Contains(hostLower, "api.") || strings.Contains(rawLower, "/api/") {
+		return "api"
+	}
+	return "domain"
+}
+
+func shouldIgnoreHost(host string) bool {
+	switch strings.ToLower(host) {
+	case "process.env", "inputschema.properties", "metadata.dependencies":
+		return true
+	default:
+		return false
+	}
 }
 
 func containsAny(s string, needles ...string) bool {

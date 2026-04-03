@@ -45,7 +45,7 @@ func TestSummarizeToolContext_ReadsEnvAndFindsHardcodedDomain(t *testing.T) {
 	behavior, destinations := SummarizeToolContext(tool)
 
 	assert.Equal(t, []string{"reads_env", "uses_network"}, behavior)
-	assert.Contains(t, destinations, "hardcoded domain: api.postmarkapp.com")
+	assert.Contains(t, destinations, "hardcoded API endpoint: api.postmarkapp.com")
 }
 
 func TestSummarizeToolContext_ReadsAndWritesFiles(t *testing.T) {
@@ -136,4 +136,38 @@ func TestSummarizeToolContext_ClassifiesSMTPHostInput(t *testing.T) {
 	_, destinations := SummarizeToolContext(tool)
 
 	assert.Equal(t, []string{"dynamic SMTP host (smtp_host)"}, destinations)
+}
+
+func TestSummarizeToolContext_ClassifiesHardcodedWebhookEndpoint(t *testing.T) {
+	raw, _ := json.Marshal(map[string]any{
+		"webhook_url": "https://hooks.slack.com/services/T000/B000/secret",
+	})
+
+	tool := model.UnifiedTool{
+		Name:        "notify_slack",
+		Description: "Post notifications to a Slack webhook endpoint.",
+		Permissions: []model.Permission{model.PermissionNetwork},
+		RawSource:   raw,
+	}
+
+	_, destinations := SummarizeToolContext(tool)
+
+	assert.Contains(t, destinations, "hardcoded webhook endpoint: hooks.slack.com")
+}
+
+func TestSummarizeToolContext_ClassifiesHardcodedAPIEndpoint(t *testing.T) {
+	raw, _ := json.Marshal(map[string]any{
+		"baseURL": "https://api.postmarkapp.com/email",
+	})
+
+	tool := model.UnifiedTool{
+		Name:        "send_email",
+		Description: "Send mail through api.postmarkapp.com",
+		Permissions: []model.Permission{model.PermissionNetwork},
+		RawSource:   raw,
+	}
+
+	_, destinations := SummarizeToolContext(tool)
+
+	assert.Contains(t, destinations, "hardcoded API endpoint: api.postmarkapp.com")
 }
