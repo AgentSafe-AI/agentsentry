@@ -46,6 +46,7 @@ func NewScanner(enableDeepScan bool, rulesDir string) (*Scanner, error) {
 	checkers := []checker{
 		NewBlacklistChecker(),               // AS-008 (offline blacklist, runs first)
 		NewPoisoningChecker(enableDeepScan), // AS-001
+		NewDataExfilDescriptionChecker(),    // AS-017
 		NewPermissionChecker(),              // AS-002
 		NewScopeChecker(),                   // AS-003
 		NewSupplyChainChecker(),             // AS-004

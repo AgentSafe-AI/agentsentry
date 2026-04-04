@@ -245,7 +245,7 @@ func TestHandleListRules_ReturnsAllRules(t *testing.T) {
 	var rules []map[string]string
 	text := result.Content[0].(mcplib.TextContent).Text
 	require.NoError(t, json.Unmarshal([]byte(text), &rules))
-	assert.Len(t, rules, 15, "should return all 15 built-in rules")
+	assert.Len(t, rules, 16, "should return all 16 built-in rules")
 
 	// Verify expected rule IDs.
 	ids := make(map[string]bool)
@@ -254,7 +254,7 @@ func TestHandleListRules_ReturnsAllRules(t *testing.T) {
 		assert.NotEmpty(t, r["title"], "rule %s should have a title", r["id"])
 		assert.NotEmpty(t, r["description"], "rule %s should have a description", r["id"])
 	}
-	expectedIDs := []string{"AS-001", "AS-002", "AS-003", "AS-004", "AS-005", "AS-006", "AS-007", "AS-008", "AS-009", "AS-010", "AS-011", "AS-013", "AS-014", "AS-015", "AS-016"}
+	expectedIDs := []string{"AS-001", "AS-002", "AS-003", "AS-004", "AS-005", "AS-006", "AS-007", "AS-008", "AS-009", "AS-010", "AS-011", "AS-013", "AS-014", "AS-015", "AS-016", "AS-017"}
 	for _, id := range expectedIDs {
 		assert.True(t, ids[id], "missing rule %s", id)
 	}

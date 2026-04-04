@@ -305,3 +305,99 @@ func TestArbitraryCodeChecker_PuppeteerEvaluate_NameSuffix(t *testing.T) {
 	assert.Contains(t, []model.Grade{model.GradeC, model.GradeD, model.GradeF}, report.Grade,
 		"puppeteer_evaluate must not get A or B; got %s", report.Grade)
 }
+
+func TestArbitraryCodeChecker_EvaluateGuardrail_NoFalsePositive(t *testing.T) {
+	cases := []struct {
+		name string
+		desc string
+	}{
+		{"evaluate_guardrail", "Evaluates a guardrail policy."},
+		{"evaluate_action", "Evaluates whether an action is permitted."},
+		{"evaluate_contract", "Evaluates contract terms."},
+	}
+	for _, tc := range cases {
+		tool := model.UnifiedTool{Name: tc.name, Description: tc.desc}
+		eng, _ := NewEngine(false, "")
+		report := eng.Scan(tool)
+		assert.False(t, report.HasFinding("AS-006"),
+			"false positive: %q must NOT trigger AS-006", tc.name)
+	}
+}
+
+func TestArbitraryCodeChecker_EvaluateGuardrail_DescriptionConfirmsExecution(t *testing.T) {
+	tool := model.UnifiedTool{
+		Name:        "evaluate_guardrail",
+		Description: "Evaluates a script in the browser context using page.evaluate.",
+	}
+	eng, _ := NewEngine(false, "")
+	report := eng.Scan(tool)
+	assert.True(t, report.HasFinding("AS-006"),
+		"safe-prefix names must still trigger when description confirms execution")
+}
+
+func TestArbitraryCodeChecker_AnalyzeCode_NoFalsePositive(t *testing.T) {
+	cases := []struct {
+		name string
+		desc string
+	}{
+		{"analyze_code_security", "Analyzes code for security vulnerabilities."},
+		{"analyze_codebase", "AST parsing analysis of the codebase."},
+	}
+	for _, tc := range cases {
+		tool := model.UnifiedTool{Name: tc.name, Description: tc.desc}
+		eng, _ := NewEngine(false, "")
+		report := eng.Scan(tool)
+		assert.False(t, report.HasFinding("AS-006"),
+			"false positive: %q must NOT trigger AS-006", tc.name)
+	}
+}
+
+func TestArbitraryCodeChecker_ResolveLibraryId_NoFalsePositive(t *testing.T) {
+	tool := model.UnifiedTool{
+		Name:        "resolve-library-id",
+		Description: "Resolves a library identifier to its metadata.",
+	}
+	eng, _ := NewEngine(false, "")
+	report := eng.Scan(tool)
+	assert.False(t, report.HasFinding("AS-006"),
+		"resolve-library-id must NOT trigger AS-006")
+}
+
+func TestArbitraryCodeChecker_CodeContext_NoFalsePositive(t *testing.T) {
+	cases := []struct {
+		name string
+		desc string
+	}{
+		{"get_code_context_exa", "Returns code context from search results."},
+		{"microsoft_code_sample_search", "Searches for code samples in Microsoft docs."},
+	}
+	for _, tc := range cases {
+		tool := model.UnifiedTool{Name: tc.name, Description: tc.desc}
+		eng, _ := NewEngine(false, "")
+		report := eng.Scan(tool)
+		assert.False(t, report.HasFinding("AS-006"),
+			"false positive: %q must NOT trigger AS-006", tc.name)
+	}
+}
+
+func TestArbitraryCodeChecker_PlanCreate_NoFalsePositive(t *testing.T) {
+	tool := model.UnifiedTool{
+		Name:        "plan_create",
+		Description: "Creates execution plans, does not execute code.",
+	}
+	eng, _ := NewEngine(false, "")
+	report := eng.Scan(tool)
+	assert.False(t, report.HasFinding("AS-006"),
+		"plan_create must NOT trigger AS-006")
+}
+
+func TestArbitraryCodeChecker_GetComponentSnippet_NoFalsePositive(t *testing.T) {
+	tool := model.UnifiedTool{
+		Name:        "get_component_snippet",
+		Description: "Returns code snippets for UI components.",
+	}
+	eng, _ := NewEngine(false, "")
+	report := eng.Scan(tool)
+	assert.False(t, report.HasFinding("AS-006"),
+		"get_component_snippet must NOT trigger AS-006")
+}

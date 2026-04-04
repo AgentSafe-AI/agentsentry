@@ -44,7 +44,7 @@ Then ask your agent: `run tooltrust_scan_config`
 | `tooltrust_scan_server` | Scan a specific MCP server |
 | `tooltrust_scanner_scan` | Scan a JSON blob of tool definitions |
 | `tooltrust_lookup` | Look up a server's trust grade |
-| `tooltrust_list_rules` | List all 15 active security rules |
+| `tooltrust_list_rules` | List all 16 active security rules |
 
 ## Dependency visibility
 

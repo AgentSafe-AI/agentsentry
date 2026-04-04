@@ -20,6 +20,7 @@ func writeSarifOutput(opts scanOpts, report ScanReport) error {
 	run := sarif.NewRunWithInformationURI("ToolTrust Scanner", "https://github.com/AgentSafe-AI/tooltrust-scanner")
 
 	run.AddRule("AS-001").WithShortDescription(sarif.NewMultiformatMessageString("Prompt Injection")).WithHelpURI("https://github.com/AgentSafe-AI/tooltrust-scanner")
+	run.AddRule("AS-017").WithShortDescription(sarif.NewMultiformatMessageString("Suspicious Data Exfiltration Description")).WithHelpURI("https://github.com/AgentSafe-AI/tooltrust-scanner")
 	run.AddRule("AS-002").WithShortDescription(sarif.NewMultiformatMessageString("Dangerous Permission")).WithHelpURI("https://github.com/AgentSafe-AI/tooltrust-scanner")
 	run.AddRule("AS-003").WithShortDescription(sarif.NewMultiformatMessageString("Scope Mismatch")).WithHelpURI("https://github.com/AgentSafe-AI/tooltrust-scanner")
 	run.AddRule("AS-004").WithShortDescription(sarif.NewMultiformatMessageString("Supply Chain Risk")).WithHelpURI("https://github.com/AgentSafe-AI/tooltrust-scanner")

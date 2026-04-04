@@ -5,6 +5,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.3.6] - 2026-04-04
+
+### Fixed
+- **AS-006 false positives**: tools with names like `evaluate_guardrail`,
+  `analyze_code_security`, `resolve-library-id`, `code_context`, and
+  `code_snippet` are no longer falsely flagged as arbitrary code execution.
+  Added safe-name prefixes, safe-name substrings, description-confirms-execution
+  gating, and description negation checks. The `code snippet` keyword is now
+  gated behind execution verbs (`run`/`execute`/`eval`).
+
+### Changed
+- **AS-001 split**: data exfiltration findings are now reported under a separate
+  sub-rule for clearer triage.
+
+---
+
+## [0.3.4] - 2026-04-02
+
+### Added
+- **Finding evidence**: findings can now carry compact static evidence, including
+  matched permission values, prompt-injection description matches, arbitrary-code
+  name/description patterns, and compromised package/version blacklist hits.
+- **Behavior context**: scanner policies now summarize what a tool appears able
+  to do, including `reads_env`, `reads_files`, `writes_files`,
+  `executes_commands`, and `uses_network`.
+- **Destination context**: scanner policies now classify where a tool may send
+  data, including dynamic URL inputs, email recipients, webhook/callback/SMTP
+  destinations, and hardcoded API, webhook, email-recipient, or domain targets.
+- **Evidence roadmap**: added an implementation roadmap for evidence, behavior,
+  and confirmed-malicious classification in `docs/EVIDENCE_ROADMAP.md`.
+
+### Changed
+- **CLI output readability**: `scan` output now emphasizes the per-tool decision
+  first, adds a short `Why approval`/`Why blocked` summary for flagged tools,
+  removes raw score noise from tool headers, and suppresses repeated hints from
+  the same rule within a single tool.
+- **Evidence rendering**: CLI and MCP text output now show only compact,
+  non-redundant evidence so scans stay readable while still explaining why a
+  finding matched.
+- **Behavior/destination propagation**: gateway policy JSON now exposes behavior,
+  destination, and dependency-visibility context for downstream consumers such
+  as ToolTrust Directory.
+
+### Fixed
+- **CLI noise for clean tools**: `ALLOW` / grade-A tools no longer show
+  low-signal dependency visibility noise or duplicate evidence/hint lines.
+- **Destination false positives**: destination classification now avoids
+  mistaking code-like strings such as `process.env` for real outbound targets.
+- **Developer docs consistency**: `DEVELOPER.md`, `CONTRIBUTING.md`, and related
+  docs were cleaned up so architecture, contribution flow, and rule references
+  point to the current code paths.
+
+---
+
 ## [0.2.3] - 2026-03-25
 
 ### Fixed

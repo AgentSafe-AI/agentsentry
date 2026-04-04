@@ -93,6 +93,10 @@ func TestEngine_AS001_SendContentToRecipient_NoFinding(t *testing.T) {
 			name: "generic_send_data_to_user",
 			desc: "Sends structured data to the requesting user.",
 		},
+		{
+			name: "noteit_web_create",
+			desc: "Creates a web note and can send conversation history to a user-provided URL for sharing.",
+		},
 	}
 	eng, _ := analyzer.NewEngine(false, "")
 	for _, tc := range cases {
@@ -131,8 +135,10 @@ func TestEngine_AS001_ExfiltrationToExternalEndpoint_Finding(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			tool := model.UnifiedTool{Name: tc.name, Description: tc.desc}
 			report := eng.Scan(tool)
-			assert.True(t, report.HasFinding("AS-001"),
-				"exfiltration to external endpoint must trigger AS-001: %q", tc.desc)
+			assert.True(t, report.HasFinding("AS-017"),
+				"exfiltration to external endpoint must trigger AS-017: %q", tc.desc)
+			assert.False(t, report.HasFinding("AS-001"),
+				"data exfiltration language should not be classified as AS-001: %q", tc.desc)
 		})
 	}
 }

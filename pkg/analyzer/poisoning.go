@@ -8,17 +8,10 @@ import (
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
-// patternRule pairs an injection-detection regex with the severity it emits
-// and a flag marking it as a low-confidence "data-movement" rule.
-//
-// Low-confidence rules (skipForDataMovement=true) are skipped when the
-// tool's name clearly belongs to a data-movement domain (email, messaging,
-// forwarding) AND the name contains no external-destination signal.  They
-// also emit Medium instead of Critical to reflect reduced certainty.
+// patternRule pairs an injection-detection regex with the severity it emits.
 type patternRule struct {
-	pattern             *regexp.Regexp
-	severity            model.Severity
-	skipForDataMovement bool
+	pattern  *regexp.Regexp
+	severity model.Severity
 }
 
 // legitimateDataMovementTools lists tool-name keywords that indicate sending
@@ -35,48 +28,33 @@ var suspiciousNameTerms = []string{
 	"external", "remote", "http", "url", "attacker", "exfil",
 }
 
-// injectionRules is the ordered list of AS-001 detection rules, split into:
-//   - High-confidence: explicit injection markers — always Critical.
-//   - Low-confidence: data-exfiltration patterns — Medium severity, skipped
-//     for tools whose names imply legitimate data movement.
+// injectionRules is the ordered list of AS-001 detection rules.
+// AS-001 is reserved for explicit prompt/instruction override patterns.
 var injectionRules = []patternRule{
 	// ── High-confidence: explicit injection markers ──────────────────────────
 	{
 		regexp.MustCompile(`(?i)(ignore|disregard|bypass)\s+(?:\w+\s+){0,3}(instructions?|prompts?|context|rules?|guidelines?|restrictions?|filters?)`),
-		model.SeverityCritical, false,
+		model.SeverityCritical,
 	},
-	{regexp.MustCompile(`(?im)^\s*system\s*:`), model.SeverityCritical, false},
-	{regexp.MustCompile(`(?i)<\s*INST\s*>`), model.SeverityCritical, false},
-	{regexp.MustCompile(`(?i)\[INST\]`), model.SeverityCritical, false},
+	{regexp.MustCompile(`(?im)^\s*system\s*:`), model.SeverityCritical},
+	{regexp.MustCompile(`(?i)<\s*INST\s*>`), model.SeverityCritical},
+	{regexp.MustCompile(`(?i)\[INST\]`), model.SeverityCritical},
 	{
 		regexp.MustCompile(`(?i)act\s+as\s+(an?\s+)?(admin|root|superuser|privileged)`),
-		model.SeverityCritical, false,
+		model.SeverityCritical,
 	},
 	{
 		regexp.MustCompile(`(?i)forget\s+(your|all|previous)\s+(instructions?|context|rules?|training)`),
-		model.SeverityCritical, false,
+		model.SeverityCritical,
 	},
 	{
 		regexp.MustCompile(`(?i)you\s+(are\s+now|must\s+now|will\s+now)\s+(act|behave|operate)`),
-		model.SeverityCritical, false,
+		model.SeverityCritical,
 	},
-	{regexp.MustCompile(`(?i)exfiltrate\s+(?:\w+\s+){0,2}(?:data|info|credentials?|secrets?|content|results?)`), model.SeverityCritical, false},
-	{regexp.MustCompile(`(?i)(developer|unrestricted)\s+mode`), model.SeverityCritical, false},
-	{regexp.MustCompile(`(?i)full\s+system\s+access`), model.SeverityCritical, false},
-	{regexp.MustCompile(`(?i)jailbreak`), model.SeverityCritical, false},
-
-	// ── Low-confidence: data-exfiltration patterns ───────────────────────────
-	// Require an explicit external-destination indicator so they don't fire on
-	// everyday "send X to Y" API documentation language.  Downgraded to Medium
-	// and skipped for tools whose names imply safe data movement.
-	{
-		regexp.MustCompile(`(?i)send.*(history|data|conversation).*to.*(http|url)`),
-		model.SeverityMedium, true,
-	},
-	{
-		regexp.MustCompile(`(?i)(?:transmit|send|forward|post|upload|pipe).{0,80}(?:data|info|content).{0,80}\bto\s+(?:https?://|external\s+\w+|remote\s+\w+|attacker|base64)`),
-		model.SeverityMedium, true,
-	},
+	{regexp.MustCompile(`(?i)exfiltrate\s+(?:\w+\s+){0,2}(?:data|info|credentials?|secrets?|content|results?)`), model.SeverityCritical},
+	{regexp.MustCompile(`(?i)(developer|unrestricted)\s+mode`), model.SeverityCritical},
+	{regexp.MustCompile(`(?i)full\s+system\s+access`), model.SeverityCritical},
+	{regexp.MustCompile(`(?i)jailbreak`), model.SeverityCritical},
 }
 
 type PoisoningChecker struct {
@@ -103,13 +81,8 @@ func (c *PoisoningChecker) Check(tool model.UnifiedTool) ([]model.Issue, error) 
 		return nil, nil
 	}
 
-	skipDataMovement := isDataMovementTool(tool.Name)
-
 	var issues []model.Issue
 	for _, rule := range injectionRules {
-		if skipDataMovement && rule.skipForDataMovement {
-			continue
-		}
 		if rule.pattern.MatchString(desc) {
 			matched := rule.pattern.FindString(desc)
 			issues = append(issues, model.Issue{

@@ -1,6 +1,6 @@
 # Security Rules
 
-ToolTrust Scanner checks every MCP tool against 15 active built-in rules.
+ToolTrust Scanner checks every MCP tool against 16 active built-in rules.
 Each rule fires independently; a tool can trigger multiple rules.
 
 ---
@@ -11,7 +11,7 @@ Each rule fires independently; a tool can trigger multiple rules.
 
 Detects malicious instructions hidden in tool names or descriptions that attempt to hijack the agent's reasoning, override system prompts, or redirect behavior toward attacker-controlled goals.
 
-Common patterns: `ignore previous instructions`, `system:`, `exfiltrate data to`, role-override language, base64-encoded payloads.
+Common patterns: `ignore previous instructions`, `system:`, role-override language, and base64-encoded payloads intended to override the agent's instructions.
 
 ---
 
@@ -130,3 +130,11 @@ Flags npm dependency versions that publish install-time lifecycle scripts such a
 **Severity:** Critical
 
 Flags npm dependency versions whose published registry metadata or install-time scripts reference known malicious IOC package names, domains, URLs, or script patterns, such as `plain-crypto-js` or reviewed shell-fetch indicators. This is narrower than full tarball signature scanning, but it can still catch compromised releases when an IOC appears in dependency metadata.
+
+---
+
+## ⚠️ AS-017 — Suspicious Data Exfiltration Description
+
+**Severity:** Medium
+
+Flags tool descriptions that explicitly suggest forwarding user data, content, or conversation history to external endpoints such as remote hosts, external servers, attacker-controlled URLs, or base64-encoded sinks. This is intentionally separate from AS-001 so prompt-injection findings stay focused on instruction override language.
