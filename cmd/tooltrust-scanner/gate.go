@@ -20,15 +20,15 @@ import (
 )
 
 type gateOpts struct {
-	packageName         string
-	extraArgs           []string
-	name                string
-	force               bool
-	dryRun              bool
-	blockOn             string
-	scope               string
-	deepScan            bool
-	rulesDir            string
+	packageName string
+	extraArgs   []string
+	name        string
+	force       bool
+	dryRun      bool
+	blockOn     string
+	scope       string
+	deepScan    bool
+	rulesDir    string
 	allowUnsafeLiveScan bool
 }
 

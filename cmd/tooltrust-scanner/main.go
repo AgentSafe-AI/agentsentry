@@ -83,16 +83,16 @@ var severityWeight = map[model.Severity]int{
 
 func newScanCmd() *cobra.Command {
 	var (
-		inputFile           string
-		serverCmd           string
-		protocol            string
-		output              string
-		outputFile          string
-		failOn              string
-		dbPath              string
-		verbose             bool
-		deepScan            bool
-		rulesDir            string
+		inputFile  string
+		serverCmd  string
+		protocol   string
+		output     string
+		outputFile string
+		failOn     string
+		dbPath     string
+		verbose    bool
+		deepScan   bool
+		rulesDir   string
 		allowUnsafeLiveScan bool
 	)
 
@@ -107,16 +107,16 @@ func newScanCmd() *cobra.Command {
   tooltrust-scanner scan --input tools.json --db scans.db`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runScan(cmd.Context(), scanOpts{
-				inputFile:           inputFile,
-				serverCmd:           serverCmd,
-				protocol:            protocol,
-				output:              output,
-				outputFile:          outputFile,
-				failOn:              failOn,
-				dbPath:              dbPath,
-				verbose:             verbose,
-				deepScan:            deepScan,
-				rulesDir:            rulesDir,
+				inputFile:  inputFile,
+				serverCmd:  serverCmd,
+				protocol:   protocol,
+				output:     output,
+				outputFile: outputFile,
+				failOn:     failOn,
+				dbPath:     dbPath,
+				verbose:    verbose,
+				deepScan:   deepScan,
+				rulesDir:   rulesDir,
 				allowUnsafeLiveScan: allowUnsafeLiveScan,
 			})
 		},
@@ -139,16 +139,16 @@ func newScanCmd() *cobra.Command {
 }
 
 type scanOpts struct {
-	inputFile           string
-	serverCmd           string
-	protocol            string
-	output              string
-	outputFile          string
-	failOn              string
-	dbPath              string
-	verbose             bool
-	deepScan            bool
-	rulesDir            string
+	inputFile  string
+	serverCmd  string
+	protocol   string
+	output     string
+	outputFile string
+	failOn     string
+	dbPath     string
+	verbose    bool
+	deepScan   bool
+	rulesDir   string
 	allowUnsafeLiveScan bool
 }
 
