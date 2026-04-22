@@ -69,12 +69,12 @@ func (m *ToolMeta) UnmarshalJSON(data []byte) error {
 	type alias ToolMeta
 	var parsed alias
 	if err := json.Unmarshal(data, &parsed); err != nil {
-		return err
+		return fmt.Errorf("ToolMeta: unmarshal known fields: %w", err)
 	}
 
 	var extra map[string]any
 	if err := json.Unmarshal(data, &extra); err != nil {
-		return err
+		return fmt.Errorf("ToolMeta: unmarshal extra fields: %w", err)
 	}
 	delete(extra, "repo_url")
 	delete(extra, "dependencies")
@@ -102,7 +102,11 @@ func (m ToolMeta) MarshalJSON() ([]byte, error) {
 	if len(m.OAuthScopes) > 0 {
 		out["oauth_scopes"] = m.OAuthScopes
 	}
-	return json.Marshal(out)
+	data, err := json.Marshal(out)
+	if err != nil {
+		return nil, fmt.Errorf("ToolMeta: marshal: %w", err)
+	}
+	return data, nil
 }
 
 // DependencyMetadata is the MCP-side representation of a package dependency.
