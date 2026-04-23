@@ -142,6 +142,10 @@ Block risky MCP servers in your pipeline:
     fail-on: "approval"
 ```
 
+## Deployment and security
+
+For deployment, use the install paths in [Install](#install) or the workflow example in [CI / GitHub Actions](#ci--github-actions). For vulnerability reporting and disclosure policy, see [docs/SECURITY.md](docs/SECURITY.md).
+
 ## Scan-before-install gate
 
 Never add an untrusted MCP server to your config again:
@@ -172,4 +176,4 @@ If your MCP server passes ToolTrust, let people know:
 
 ---
 
-[Usage guide](docs/USAGE.md) · [Developer guide](docs/DEVELOPER.md) · [Contributing](docs/CONTRIBUTING.md) · [Deployment & security](docs/DEPLOYMENT.md) · [Changelog](CHANGELOG.md) · [Security](docs/SECURITY.md) · [License: MIT](LICENSE)
+[Usage guide](docs/USAGE.md) · [Developer guide](docs/DEVELOPER.md) · [Contributing](docs/CONTRIBUTING.md) · [Deployment & security](#deployment-and-security) · [Changelog](CHANGELOG.md) · [Security](docs/SECURITY.md) · [License: MIT](LICENSE)
