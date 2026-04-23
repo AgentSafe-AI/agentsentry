@@ -1,6 +1,7 @@
 package sourcedetect
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -23,7 +24,7 @@ func walkSourceFiles(root string, opts Options, visit func(rel, abs string, d fs
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return fmt.Errorf("walk %s: %w", path, err)
 		}
 		if path == root {
 			return nil
@@ -31,7 +32,7 @@ func walkSourceFiles(root string, opts Options, visit func(rel, abs string, d fs
 
 		rel, relErr := filepath.Rel(root, path)
 		if relErr != nil {
-			return relErr
+			return fmt.Errorf("compute relative path for %s: %w", path, relErr)
 		}
 		rel = filepath.ToSlash(rel)
 
@@ -69,7 +70,10 @@ func walkSourceFiles(root string, opts Options, visit func(rel, abs string, d fs
 	if err == fs.SkipAll {
 		return filesScanned, nil
 	}
-	return filesScanned, err
+	if err != nil {
+		return filesScanned, fmt.Errorf("walk source files: %w", err)
+	}
+	return filesScanned, nil
 }
 
 func shouldSkipFile(rel string) bool {
@@ -115,7 +119,8 @@ func loadIgnorePatterns(root string) []string {
 
 func shouldIgnore(rel string, patterns []string) bool {
 	for _, pattern := range patterns {
-		if ok, _ := filepath.Match(pattern, rel); ok {
+		ok, err := filepath.Match(pattern, rel)
+		if err == nil && ok {
 			return true
 		}
 		if strings.HasSuffix(pattern, "/") && strings.HasPrefix(rel, strings.TrimSuffix(pattern, "/")+"/") {

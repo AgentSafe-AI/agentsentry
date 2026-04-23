@@ -45,14 +45,14 @@ func runScanRepo(ctx context.Context, opts scanRepoOpts) error {
 
 	result, err := sourcedetect.DetectEmbeddedMCP(opts.repoDir, sourcedetect.Options{})
 	if err != nil {
-		return err
+		return fmt.Errorf("source detection failed: %w", err)
 	}
 
 	var out []byte
 	if opts.output == "json" {
 		out, err = json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			return err
+			return fmt.Errorf("marshal source-detect output: %w", err)
 		}
 		out = append(out, '\n')
 	} else {
@@ -64,8 +64,14 @@ func runScanRepo(ctx context.Context, opts scanRepoOpts) error {
 	}
 
 	if opts.outputFile != "" {
-		return os.WriteFile(opts.outputFile, out, 0o644)
+		if writeErr := os.WriteFile(opts.outputFile, out, 0o644); writeErr != nil {
+			return fmt.Errorf("write output file %s: %w", opts.outputFile, writeErr)
+		}
+		return nil
 	}
 	_, err = os.Stdout.Write(out)
-	return err
+	if err != nil {
+		return fmt.Errorf("write stdout: %w", err)
+	}
+	return nil
 }
