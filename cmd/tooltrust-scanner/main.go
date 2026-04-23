@@ -40,6 +40,7 @@ func newRootCmd() *cobra.Command {
 	}
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(newScanCmd())
+	root.AddCommand(newScanRepoCmd())
 	root.AddCommand(newGateCmd())
 	return root
 }
@@ -762,6 +763,7 @@ var ruleHint = map[string]string{
 	"AS-015": "→ Review the install-time script before use. Prefer a version without lifecycle scripts, or install with --ignore-scripts in CI/sandboxed environments.",
 	"AS-016": "→ Treat this package version as a likely compromise. Remove it, rotate exposed credentials, and inspect the dependency tree for the IOC package before reinstalling.",
 	"AS-017": "→ Review whether the tool description is instructing external data forwarding. If intentional, require approval and narrow the destination scope.",
+	"AS-018": "→ Run a sandboxed live scan when possible, or add a tools manifest so the embedded MCP implementation can be reviewed without executing the server.",
 }
 
 // formatIssueLabel returns a coloured finding line with optional evidence and fix hint.
