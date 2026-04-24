@@ -39,6 +39,7 @@ type Dependency struct {
 	Name      string `json:"name"`
 	Version   string `json:"version"`
 	Ecosystem string `json:"ecosystem"` // e.g. "npm", "Go", "PyPI"
+	Source    string `json:"source,omitempty"`
 }
 
 type dependencyEvidence struct {
@@ -697,9 +698,13 @@ func collectDependencies(tool model.UnifiedTool) ([]dependencyEvidence, error) {
 			continue
 		}
 		seen[k] = true
+		source := dep.Source
+		if source == "" {
+			source = "metadata"
+		}
 		result = append(result, dependencyEvidence{
 			Dependency: dep,
-			Source:     "metadata",
+			Source:     source,
 		})
 	}
 

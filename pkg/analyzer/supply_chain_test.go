@@ -272,6 +272,32 @@ func TestSupplyChainChecker_RepoURLLockfileDependency_IncludesEvidenceSource(t *
 	assert.Equal(t, "MALICIOUS_PACKAGE", issues[0].Code)
 }
 
+func TestSupplyChainChecker_MetadataDependency_PreservesEvidenceSource(t *testing.T) {
+	checker := analyzer.NewSupplyChainCheckerWithMock([]analyzer.MockVuln{
+		{ID: "CVE-2026-1234", Summary: "Remote code execution", CVSSScore: "9.8"},
+	}, nil)
+
+	tool := model.UnifiedTool{
+		Name: "metadata_tool",
+		Metadata: map[string]any{
+			"dependencies": []map[string]any{
+				{
+					"name":      "axios",
+					"version":   "1.14.1",
+					"ecosystem": "npm",
+					"source":    "local_lockfile",
+				},
+			},
+		},
+	}
+
+	issues, err := checker.Check(tool)
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	assert.Equal(t, "dependency_source", issues[0].Evidence[3].Kind)
+	assert.Equal(t, "local_lockfile", issues[0].Evidence[3].Value)
+}
+
 // ---------------------------------------------------------------------------
 // Lockfile parser unit tests
 // ---------------------------------------------------------------------------
