@@ -103,6 +103,31 @@ func TestAdapter_Parse_MultipleTools(t *testing.T) {
 	assert.Len(t, tools, 2)
 }
 
+func TestAdapter_Parse_JSONRPCListToolsResponse(t *testing.T) {
+	payload := []byte(`{
+		"jsonrpc": "2.0",
+		"id": 1,
+		"result": {
+			"tools": [{
+				"name": "read_file",
+				"description": "Read a file from disk",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"path": {"type": "string"}
+					}
+				}
+			}]
+		}
+	}`)
+
+	tools, err := mcp.NewAdapter().Parse(context.Background(), payload)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+	assert.Equal(t, "read_file", tools[0].Name)
+	assert.Contains(t, tools[0].Permissions, model.PermissionFS)
+}
+
 func TestAdapter_Parse_EmptyList(t *testing.T) {
 	payload := mustMarshal(mcp.ListToolsResponse{Tools: []mcp.Tool{}})
 	tools, err := mcp.NewAdapter().Parse(context.Background(), payload)

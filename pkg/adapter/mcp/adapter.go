@@ -21,14 +21,18 @@ func (a *Adapter) Protocol() model.ProtocolType { return model.ProtocolMCP }
 
 // Parse implements adapter.Adapter for the MCP tools/list response format.
 func (a *Adapter) Parse(_ context.Context, data []byte) ([]model.UnifiedTool, error) {
-	var resp ListToolsResponse
+	var resp listToolsEnvelope
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return nil, fmt.Errorf("mcp adapter: failed to parse tools/list response: %w", err)
 	}
+	toolList := resp.Tools
+	if toolList == nil && resp.Result != nil {
+		toolList = resp.Result.Tools
+	}
 
-	tools := make([]model.UnifiedTool, 0, len(resp.Tools))
-	for i := range resp.Tools {
-		t := resp.Tools[i]
+	tools := make([]model.UnifiedTool, 0, len(toolList))
+	for i := range toolList {
+		t := toolList[i]
 		raw, err := json.Marshal(t)
 		if err != nil {
 			// Marshalling a plain struct with only string fields should never fail.

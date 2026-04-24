@@ -47,6 +47,11 @@ type ListToolsResponse struct {
 	Tools []Tool `json:"tools"`
 }
 
+type listToolsEnvelope struct {
+	Tools  []Tool             `json:"tools"`
+	Result *ListToolsResponse `json:"result,omitempty"`
+}
+
 // Tool is a single tool entry in the MCP tools/list response.
 type Tool struct {
 	Name        string      `json:"name"`
