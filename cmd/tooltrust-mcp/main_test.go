@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/kballard/go-shellquote"
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -202,7 +203,10 @@ func TestHandleScanServer_MissingArgument(t *testing.T) {
 
 func TestHandleScanServer_InvalidCommand(t *testing.T) {
 	req := mcplib.CallToolRequest{}
-	req.Params.Arguments = map[string]any{"command": "/nonexistent/command/that/does/not/exist"}
+	req.Params.Arguments = map[string]any{
+		"command":                "/nonexistent/command/that/does/not/exist",
+		"allow_unsafe_live_scan": true,
+	}
 
 	result, err := handleScanServer(context.Background(), req)
 	require.NoError(t, err)
@@ -210,6 +214,40 @@ func TestHandleScanServer_InvalidCommand(t *testing.T) {
 	assert.False(t, result.IsError) // returned as text, not error
 	text := result.Content[0].(mcplib.TextContent).Text
 	assert.Contains(t, text, "Failed to scan live server")
+}
+
+// ── unsafe live scan opt-in tests ───────────────────────────────────────────
+
+func TestHandleScanServer_RequiresUnsafeOptInBeforeExecutingCommand(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "executed")
+	t.Setenv("TOOLTRUST_HELPER_UNSAFE_LIVE_SCAN", "1")
+	t.Setenv("TOOLTRUST_HELPER_MARKER", marker)
+
+	req := mcplib.CallToolRequest{}
+	req.Params.Arguments = map[string]any{
+		"command": shellquote.Join(os.Args[0], "-test.run=TestHelperUnsafeLiveScanProcess"),
+	}
+
+	result, err := handleScanServer(context.Background(), req)
+	require.NoError(t, err)
+
+	_, statErr := os.Stat(marker)
+	require.ErrorIs(t, statErr, os.ErrNotExist, "command should not execute without explicit unsafe live scan opt-in")
+
+	require.True(t, result.IsError)
+	text := result.Content[0].(mcplib.TextContent).Text
+	assert.Contains(t, text, "allow_unsafe_live_scan")
+}
+
+func TestHelperUnsafeLiveScanProcess(t *testing.T) {
+	if os.Getenv("TOOLTRUST_HELPER_UNSAFE_LIVE_SCAN") != "1" {
+		return
+	}
+	marker := os.Getenv("TOOLTRUST_HELPER_MARKER")
+	if marker != "" {
+		_ = os.WriteFile(marker, []byte("executed"), 0o644)
+	}
+	os.Exit(0)
 }
 
 // ── tooltrust_lookup tests ──────────────────────────────────────────────────
@@ -376,6 +414,47 @@ func TestHandleScanConfig_NoConfigFile(t *testing.T) {
 }
 
 // ── Self-scan skip tests ────────────────────────────────────────────────────
+
+func TestHandleScanConfig_RequiresUnsafeOptInBeforeExecutingConfiguredServers(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "executed")
+	helperPath := filepath.Join(dir, "unsafe-helper.exe")
+	helperBinary, err := os.ReadFile(os.Args[0])
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(helperPath, helperBinary, 0o755))
+
+	cfg := mcpConfig{
+		MCPServers: map[string]mcpServerEntry{
+			"side-effect-server": {
+				Command: helperPath,
+				Args:    []string{"-test.run=TestHelperUnsafeLiveScanProcess"},
+				Env: map[string]string{
+					"TOOLTRUST_HELPER_UNSAFE_LIVE_SCAN": "1",
+					"TOOLTRUST_HELPER_MARKER":           marker,
+				},
+			},
+		},
+	}
+	data, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".mcp.json"), data, 0o644))
+
+	origDir, _ := os.Getwd()
+	require.NoError(t, os.Chdir(dir))
+	defer os.Chdir(origDir) //nolint:errcheck // best-effort restore in test cleanup
+
+	req := mcplib.CallToolRequest{}
+	req.Params.Arguments = map[string]any{}
+
+	result, err := handleScanConfig(context.Background(), req)
+	require.NoError(t, err)
+
+	_, statErr := os.Stat(marker)
+	require.ErrorIs(t, statErr, os.ErrNotExist, "configured command should not execute without explicit unsafe live scan opt-in")
+	require.True(t, result.IsError)
+	text := result.Content[0].(mcplib.TextContent).Text
+	assert.Contains(t, text, "allow_unsafe_live_scan")
+}
 
 func TestIsSelfEntry_ByName(t *testing.T) {
 	assert.True(t, isSelfEntry("tooltrust", mcpServerEntry{Command: "node", Args: []string{"server.js"}}))
