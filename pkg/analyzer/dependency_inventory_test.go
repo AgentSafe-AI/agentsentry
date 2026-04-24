@@ -42,6 +42,21 @@ func TestDependencyInventoryChecker_MCPWithDependencies_NoFinding(t *testing.T) 
 	assert.Empty(t, issues)
 }
 
+func TestDependencyInventoryChecker_MCPWithRepoURL_NoFinding(t *testing.T) {
+	checker := analyzer.NewDependencyInventoryChecker()
+	tool := model.UnifiedTool{
+		Name:     "safe_tool",
+		Protocol: model.ProtocolMCP,
+		Metadata: map[string]any{
+			"repo_url": "https://github.com/example/repo",
+		},
+	}
+
+	issues, err := checker.Check(tool)
+	require.NoError(t, err)
+	assert.Empty(t, issues)
+}
+
 func TestDependencyInventoryChecker_NonMCP_NoFinding(t *testing.T) {
 	checker := analyzer.NewDependencyInventoryChecker()
 	tool := model.UnifiedTool{
