@@ -75,11 +75,15 @@ func buildMetadata(t Tool) map[string]any {
 			if dep.Name == "" || dep.Version == "" || dep.Ecosystem == "" {
 				continue
 			}
-			deps = append(deps, map[string]any{
+			entry := map[string]any{
 				"name":      dep.Name,
 				"version":   dep.Version,
 				"ecosystem": dep.Ecosystem,
-			})
+			}
+			if dep.Source != "" {
+				entry["source"] = dep.Source
+			}
+			deps = append(deps, entry)
 		}
 		if len(deps) > 0 {
 			meta["dependencies"] = deps

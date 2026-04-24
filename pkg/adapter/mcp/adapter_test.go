@@ -160,6 +160,35 @@ func TestAdapter_Parse_PopulatesSupplyChainMetadata(t *testing.T) {
 	assert.Equal(t, "npm", deps[0]["ecosystem"])
 }
 
+func TestAdapter_Parse_PreservesDependencySource(t *testing.T) {
+	payload := []byte(`{
+		"tools": [{
+			"name": "deploy_site",
+			"description": "Deploy the site",
+			"metadata": {
+				"dependencies": [{
+					"name": "axios",
+					"version": "1.14.1",
+					"ecosystem": "npm",
+					"source": "local_lockfile"
+				}]
+			}
+		}]
+	}`)
+
+	tools, err := mcp.NewAdapter().Parse(context.Background(), payload)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+
+	deps, ok := tools[0].Metadata["dependencies"].([]map[string]any)
+	require.True(t, ok)
+	require.Len(t, deps, 1)
+	assert.Equal(t, "local_lockfile", deps[0]["source"])
+
+	visibility, _ := analyzer.DependencyVisibilityForTool(tools[0])
+	assert.Equal(t, "Verified from local lockfile", visibility)
+}
+
 func TestAdapter_Parse_PrefersMetadataRepoURL(t *testing.T) {
 	payload := mustMarshal(mcp.ListToolsResponse{
 		Tools: []mcp.Tool{

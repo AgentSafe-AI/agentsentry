@@ -114,6 +114,7 @@ type DependencyMetadata struct {
 	Name      string `json:"name"`
 	Version   string `json:"version"`
 	Ecosystem string `json:"ecosystem"`
+	Source    string `json:"source,omitempty"`
 }
 
 // InputSchema is the JSON Schema fragment embedded in an MCP Tool.
