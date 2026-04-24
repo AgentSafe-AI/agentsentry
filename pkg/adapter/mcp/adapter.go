@@ -55,27 +55,41 @@ func (a *Adapter) Parse(_ context.Context, data []byte) ([]model.UnifiedTool, er
 func buildMetadata(t Tool) map[string]any {
 	meta := map[string]any{}
 
-	for key, value := range t.Metadata.Extra {
+	mergeToolMeta(meta, t.Meta)
+	mergeToolMeta(meta, t.Metadata)
+
+	if _, ok := meta["repo_url"]; !ok {
+		repoURL := strings.TrimSpace(t.RepoURL)
+		if repoURL != "" {
+			meta["repo_url"] = repoURL
+		}
+	}
+
+	if len(meta) == 0 {
+		return nil
+	}
+	return meta
+}
+
+func mergeToolMeta(meta map[string]any, toolMeta ToolMeta) {
+	for key, value := range toolMeta.Extra {
 		meta[key] = value
 	}
 
-	repoURL := strings.TrimSpace(t.Metadata.RepoURL)
-	if repoURL == "" {
-		repoURL = strings.TrimSpace(t.RepoURL)
-	}
+	repoURL := strings.TrimSpace(toolMeta.RepoURL)
 	if repoURL != "" {
 		meta["repo_url"] = repoURL
 	}
 
-	if len(t.Metadata.OAuthScopes) > 0 {
-		scopes := make([]string, len(t.Metadata.OAuthScopes))
-		copy(scopes, t.Metadata.OAuthScopes)
+	if len(toolMeta.OAuthScopes) > 0 {
+		scopes := make([]string, len(toolMeta.OAuthScopes))
+		copy(scopes, toolMeta.OAuthScopes)
 		meta["oauth_scopes"] = scopes
 	}
 
-	if len(t.Metadata.Dependencies) > 0 {
-		deps := make([]map[string]any, 0, len(t.Metadata.Dependencies))
-		for _, dep := range t.Metadata.Dependencies {
+	if len(toolMeta.Dependencies) > 0 {
+		deps := make([]map[string]any, 0, len(toolMeta.Dependencies))
+		for _, dep := range toolMeta.Dependencies {
 			if dep.Name == "" || dep.Version == "" || dep.Ecosystem == "" {
 				continue
 			}
@@ -93,11 +107,6 @@ func buildMetadata(t Tool) map[string]any {
 			meta["dependencies"] = deps
 		}
 	}
-
-	if len(meta) == 0 {
-		return nil
-	}
-	return meta
 }
 
 // convertSchema maps an MCP InputSchema to the internal jsonschema.Schema.

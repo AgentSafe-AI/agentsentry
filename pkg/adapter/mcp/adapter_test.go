@@ -185,6 +185,40 @@ func TestAdapter_Parse_PopulatesSupplyChainMetadata(t *testing.T) {
 	assert.Equal(t, "npm", deps[0]["ecosystem"])
 }
 
+func TestAdapter_Parse_PreservesProtocolMeta(t *testing.T) {
+	payload := []byte(`{
+		"tools": [{
+			"name": "deploy_site",
+			"description": "Deploy the site",
+			"_meta": {
+				"repo_url": "https://github.com/example/site",
+				"oauth_scopes": ["repo"],
+				"dependencies": [{
+					"name": "axios",
+					"version": "1.14.1",
+					"ecosystem": "npm",
+					"source": "metadata"
+				}],
+				"timeout_ms": 5000
+			}
+		}]
+	}`)
+
+	tools, err := mcp.NewAdapter().Parse(context.Background(), payload)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+
+	meta := tools[0].Metadata
+	require.NotNil(t, meta)
+	assert.Equal(t, "https://github.com/example/site", meta["repo_url"])
+	assert.Equal(t, []string{"repo"}, meta["oauth_scopes"])
+	assert.Equal(t, float64(5000), meta["timeout_ms"])
+	deps, ok := meta["dependencies"].([]map[string]any)
+	require.True(t, ok)
+	require.Len(t, deps, 1)
+	assert.Equal(t, "metadata", deps[0]["source"])
+}
+
 func TestAdapter_Parse_PreservesDependencySource(t *testing.T) {
 	payload := []byte(`{
 		"tools": [{

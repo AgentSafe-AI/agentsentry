@@ -58,6 +58,7 @@ type Tool struct {
 	Description string      `json:"description"`
 	InputSchema InputSchema `json:"inputSchema"`
 	RepoURL     string      `json:"repo_url,omitempty"`
+	Meta        ToolMeta    `json:"_meta,omitempty"`
 	Metadata    ToolMeta    `json:"metadata,omitempty"`
 }
 
