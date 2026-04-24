@@ -300,19 +300,30 @@ func parseRequirementsTxt(data []byte) ([]Dependency, error) {
 		if i := strings.IndexByte(line, ';'); i >= 0 {
 			line = strings.TrimSpace(line[:i])
 		}
-		// Only exact pins (==) are meaningful for CVE lookup
-		if idx := strings.Index(line, "=="); idx > 0 {
-			name := normalizePythonPackageName(strings.TrimSpace(line[:idx]))
-			version := strings.TrimSpace(line[idx+2:])
-			if name != "" && version != "" {
-				deps = append(deps, Dependency{Name: name, Version: version, Ecosystem: "PyPI"})
-			}
+		// Only exact pins are meaningful for CVE lookup.
+		name, version, ok := splitPythonExactPin(line)
+		if ok {
+			deps = append(deps, Dependency{Name: name, Version: version, Ecosystem: "PyPI"})
 		}
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("parse requirements.txt: %w", err)
 	}
 	return deps, nil
+}
+
+func splitPythonExactPin(line string) (name, version string, ok bool) {
+	if idx := strings.Index(line, "==="); idx > 0 {
+		name = normalizePythonPackageName(strings.TrimSpace(line[:idx]))
+		version = strings.TrimSpace(line[idx+3:])
+		return name, version, name != "" && version != ""
+	}
+	if idx := strings.Index(line, "=="); idx > 0 {
+		name = normalizePythonPackageName(strings.TrimSpace(line[:idx]))
+		version = strings.TrimSpace(line[idx+2:])
+		return name, version, name != "" && version != ""
+	}
+	return "", "", false
 }
 
 func normalizePythonPackageName(name string) string {

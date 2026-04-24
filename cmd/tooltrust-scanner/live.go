@@ -451,18 +451,29 @@ func parseRequirementsFile(path string) ([]nodeDependency, error) {
 		if i := strings.IndexByte(line, ';'); i >= 0 {
 			line = strings.TrimSpace(line[:i])
 		}
-		if i := strings.Index(line, "=="); i > 0 {
-			name := normalizePythonRequirementName(strings.TrimSpace(line[:i]))
-			version := strings.TrimSpace(line[i+2:])
-			if name != "" && version != "" {
-				deps = append(deps, nodeDependency{Name: name, Version: version, Ecosystem: "PyPI", Source: "local_lockfile"})
-			}
+		name, version, ok := splitPythonRequirementExactPin(line)
+		if ok {
+			deps = append(deps, nodeDependency{Name: name, Version: version, Ecosystem: "PyPI", Source: "local_lockfile"})
 		}
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("scan requirements.txt %s: %w", path, err)
 	}
 	return deps, nil
+}
+
+func splitPythonRequirementExactPin(line string) (name, version string, ok bool) {
+	if idx := strings.Index(line, "==="); idx > 0 {
+		name = normalizePythonRequirementName(strings.TrimSpace(line[:idx]))
+		version = strings.TrimSpace(line[idx+3:])
+		return name, version, name != "" && version != ""
+	}
+	if idx := strings.Index(line, "=="); idx > 0 {
+		name = normalizePythonRequirementName(strings.TrimSpace(line[:idx]))
+		version = strings.TrimSpace(line[idx+2:])
+		return name, version, name != "" && version != ""
+	}
+	return "", "", false
 }
 
 func normalizePythonRequirementName(name string) string {

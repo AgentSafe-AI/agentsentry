@@ -347,11 +347,12 @@ django==4.2.0
 requests>=2.28.0
 Flask==2.3.1 ; python_requires >= "3.8"
 requests[security]==2.32.0
+urllib3===2.0.0
 -r other.txt
 `)
 	deps, err := analyzer.ParseRequirementsTxtForTest(data)
 	require.NoError(t, err)
-	assert.Len(t, deps, 3, "only exact == pins and no -r lines")
+	assert.Len(t, deps, 4, "only exact pins and no -r lines")
 
 	names := make(map[string]string)
 	for _, d := range deps {
@@ -361,6 +362,7 @@ requests[security]==2.32.0
 	assert.Equal(t, "4.2.0", names["django"])
 	assert.Equal(t, "2.3.1", names["Flask"])
 	assert.Equal(t, "2.32.0", names["requests"])
+	assert.Equal(t, "2.0.0", names["urllib3"])
 }
 
 func TestParsePNPMLockYAML(t *testing.T) {

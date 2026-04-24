@@ -447,12 +447,13 @@ func TestParseRequirementsFile_StripsMarkersAndInlineComments(t *testing.T) {
 django==4.2.0 # security fixture
 Flask==2.3.1 ; python_version >= "3.8"
 requests[security]==2.32.0
+urllib3===2.0.0
 requests>=2.28.0
 `), 0o644))
 
 	deps, err := parseRequirementsFile(requirements)
 	require.NoError(t, err)
-	require.Len(t, deps, 3)
+	require.Len(t, deps, 4)
 
 	got := map[string]string{}
 	for _, dep := range deps {
@@ -461,4 +462,5 @@ requests>=2.28.0
 	assert.Equal(t, "4.2.0", got["django"])
 	assert.Equal(t, "2.3.1", got["Flask"])
 	assert.Equal(t, "2.32.0", got["requests"])
+	assert.Equal(t, "2.0.0", got["urllib3"])
 }
