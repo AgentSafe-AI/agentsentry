@@ -1,6 +1,8 @@
 package analyzer
 
 import (
+	"strings"
+
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
@@ -25,8 +27,7 @@ func (c *DependencyInventoryChecker) Check(tool model.UnifiedTool) ([]model.Issu
 		return nil, nil
 	}
 
-	deps, err := collectDependencies(tool)
-	if err != nil || len(deps) > 0 {
+	if hasDependencyInventory(tool) {
 		return nil, nil
 	}
 
@@ -48,6 +49,17 @@ func (c *DependencyInventoryChecker) Check(tool model.UnifiedTool) ([]model.Issu
 			{Kind: "dependency_visibility", Value: "none"},
 		},
 	}}, nil
+}
+
+func hasDependencyInventory(tool model.UnifiedTool) bool {
+	if tool.Metadata == nil {
+		return false
+	}
+	if repoURL := metadataString(tool.Metadata, "repo_url"); strings.TrimSpace(repoURL) != "" {
+		return true
+	}
+	deps, err := extractDependencies(tool)
+	return err == nil && len(deps) > 0
 }
 
 func metadataNote(meta map[string]any) string {

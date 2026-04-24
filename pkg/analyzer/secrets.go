@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/AgentSafe-AI/tooltrust-scanner/internal/jsonschema"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
@@ -72,10 +73,14 @@ func (c *SecretHandlingChecker) Check(tool model.UnifiedTool) ([]model.Issue, er
 	var issues []model.Issue
 
 	// 1. Input schema: look for parameter names that indicate secrets
-	for propName := range tool.InputSchema.Properties {
-		nameLower := strings.ToLower(propName)
-		if secretParamAllowlist[nameLower] {
-			continue
+	tool.InputSchema.WalkProperties(func(ref jsonschema.PropertyRef) {
+		nameLower := strings.ToLower(ref.Path)
+		baseName := nameLower
+		if idx := strings.LastIndex(baseName, "."); idx >= 0 {
+			baseName = baseName[idx+1:]
+		}
+		if secretParamAllowlist[nameLower] || secretParamAllowlist[baseName] {
+			return
 		}
 		for _, pattern := range secretParamPatterns {
 			if nameLower == pattern || strings.Contains(nameLower, pattern) {
@@ -84,13 +89,13 @@ func (c *SecretHandlingChecker) Check(tool model.UnifiedTool) ([]model.Issue, er
 					ToolName:    tool.Name,
 					Severity:    model.SeverityHigh,
 					Code:        "SECRET_IN_INPUT",
-					Description: fmt.Sprintf("input parameter %q appears to accept a secret or credential", propName),
-					Location:    fmt.Sprintf("inputSchema.properties.%s", propName),
+					Description: fmt.Sprintf("input parameter %q appears to accept a secret or credential", ref.Path),
+					Location:    fmt.Sprintf("inputSchema.properties.%s", ref.Path),
 				})
 				break
 			}
 		}
-	}
+	})
 
 	// 2. Description: look for insecure secret handling language
 	descLower := strings.ToLower(tool.Description)

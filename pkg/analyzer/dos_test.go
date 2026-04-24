@@ -95,3 +95,24 @@ func TestEngine_AS011_NetworkNoRateLimit(t *testing.T) {
 	report := eng_e6aadc.Scan(tool)
 	assert.True(t, report.HasFinding("AS-011"))
 }
+
+func TestDoSChecker_NestedTimeoutSchema_NoFinding(t *testing.T) {
+	tool := model.UnifiedTool{
+		Name:        "nested_http_client",
+		Permissions: []model.Permission{model.PermissionHTTP},
+		InputSchema: jsonschema.Schema{
+			Properties: map[string]jsonschema.Property{
+				"request": {
+					Type: "object",
+					Properties: map[string]jsonschema.Property{
+						"timeout_ms": {Type: "integer"},
+					},
+				},
+			},
+		},
+	}
+
+	issues, err := analyzer.NewDoSResilienceChecker().Check(tool)
+	require.NoError(t, err)
+	assert.Empty(t, issues)
+}

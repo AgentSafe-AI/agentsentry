@@ -80,3 +80,33 @@ func TestPermissionChecker_SchemaPropCountNote(t *testing.T) {
 	}
 	assert.True(t, found, "expected LARGE_INPUT_SURFACE issue for schemas with >10 properties")
 }
+
+func TestPermissionChecker_CountsNestedSchemaProps(t *testing.T) {
+	nested := map[string]jsonschema.Property{}
+	for i := range 11 {
+		nested[string(rune('a'+i))] = jsonschema.Property{Type: "string"}
+	}
+
+	tool := model.UnifiedTool{
+		InputSchema: jsonschema.Schema{
+			Properties: map[string]jsonschema.Property{
+				"request": {
+					Type:       "object",
+					Properties: nested,
+				},
+			},
+		},
+	}
+
+	issues, err := analyzer.NewPermissionChecker().Check(tool)
+	require.NoError(t, err)
+
+	var found bool
+	for _, issue := range issues {
+		if issue.Code == "LARGE_INPUT_SURFACE" {
+			found = true
+			assert.Equal(t, "12", issue.Evidence[0].Value)
+		}
+	}
+	assert.True(t, found, "expected nested schema properties to count toward LARGE_INPUT_SURFACE")
+}

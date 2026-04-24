@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/analyzer"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
@@ -229,7 +231,7 @@ func TestToolReasonLabel_ForBlock(t *testing.T) {
 }
 
 func TestDependencyVisibilityForTool_None(t *testing.T) {
-	visibility, note := dependencyVisibilityForTool(model.UnifiedTool{
+	visibility, note := analyzer.DependencyVisibilityForTool(model.UnifiedTool{
 		Name: "plain_tool",
 	})
 
@@ -238,7 +240,7 @@ func TestDependencyVisibilityForTool_None(t *testing.T) {
 }
 
 func TestDependencyVisibilityForTool_MetadataAndRepoURL(t *testing.T) {
-	visibility, note := dependencyVisibilityForTool(model.UnifiedTool{
+	visibility, note := analyzer.DependencyVisibilityForTool(model.UnifiedTool{
 		Name: "tool",
 		Metadata: map[string]any{
 			"repo_url": "https://github.com/example/repo",
@@ -332,11 +334,13 @@ func TestEnrichLiveToolsWithLocalNodeDependencies(t *testing.T) {
 		_ = os.Chdir(prevWD)
 	})
 
-	tools := enrichLiveToolsWithLocalNodeDependencies([]string{"npm", "run", "dev"}, []model.UnifiedTool{{
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "server.js"), []byte(`console.log("hello")`), 0o644))
+
+	tools := enrichLiveToolsWithLocalNodeDependencies([]string{"node", "./server.js"}, []model.UnifiedTool{{
 		Name: "deploy_site",
 	}})
 	require.Len(t, tools, 1)
-	visibility, note := dependencyVisibilityForTool(tools[0])
+	visibility, note := analyzer.DependencyVisibilityForTool(tools[0])
 	assert.Equal(t, "Verified from local lockfile", visibility)
 	assert.Contains(t, note, "Local dependency artifacts scanned")
 
@@ -345,4 +349,123 @@ func TestEnrichLiveToolsWithLocalNodeDependencies(t *testing.T) {
 	require.Len(t, rawDeps, 1)
 	assert.Equal(t, "axios", rawDeps[0]["name"])
 	assert.Equal(t, "local_lockfile", rawDeps[0]["source"])
+}
+
+func TestEnrichLiveToolsWithLocalNodeDependencies_DoesNotUseCallerCWD(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "package.json"), []byte(`{"name":"demo"}`), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "package-lock.json"), []byte(`{
+  "packages": {
+    "": {"version": "1.0.0"},
+    "node_modules/axios": {"version": "1.14.1"}
+  }
+}`), 0o644))
+
+	prevWD, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(tmp))
+	t.Cleanup(func() {
+		_ = os.Chdir(prevWD)
+	})
+
+	tools := enrichLiveToolsWithLocalNodeDependencies([]string{"npx", "-y", "@modelcontextprotocol/server-memory"}, []model.UnifiedTool{{
+		Name: "memory",
+	}})
+	require.Len(t, tools, 1)
+
+	visibility, note := analyzer.DependencyVisibilityForTool(tools[0])
+	assert.Equal(t, "No dependency data", visibility)
+	assert.Contains(t, note, "No metadata.dependencies or repo_url")
+	_, hasDeps := tools[0].Metadata["dependencies"]
+	assert.False(t, hasDeps)
+}
+
+func TestRunScan_ServerRequiresUnsafeLiveScanOptIn(t *testing.T) {
+	err := runScan(context.Background(), scanOpts{
+		serverCmd: `npx -y @modelcontextprotocol/server-memory`,
+		protocol:  "mcp",
+		output:    "text",
+	}, false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--allow-unsafe-live-scan")
+}
+
+func TestParseYarnLockfile_ParsesYarnBerryEntries(t *testing.T) {
+	tmp := t.TempDir()
+	lockfile := filepath.Join(tmp, "yarn.lock")
+	require.NoError(t, os.WriteFile(lockfile, []byte(`
+__metadata:
+  version: 8
+
+"axios@npm:^1.14.1":
+  version: 1.14.1
+
+"@scope/sdk@npm:^2.3.4":
+  version: 2.3.4
+`), 0o644))
+
+	deps, err := parseYarnLockfile(lockfile)
+	require.NoError(t, err)
+	require.Len(t, deps, 2)
+
+	got := map[string]string{}
+	for _, dep := range deps {
+		got[dep.Name] = dep.Version
+	}
+	assert.Equal(t, "1.14.1", got["axios"])
+	assert.Equal(t, "2.3.4", got["@scope/sdk"])
+}
+
+func TestParsePNPMLockfile_StripsPeerDependencySuffix(t *testing.T) {
+	tmp := t.TempDir()
+	lockfile := filepath.Join(tmp, "pnpm-lock.yaml")
+	require.NoError(t, os.WriteFile(lockfile, []byte(`
+lockfileVersion: '9.0'
+packages:
+  /axios@1.14.1:
+    resolution: {integrity: sha512-abc}
+  /@scope/sdk@2.3.4(axios@1.14.1):
+    resolution: {integrity: sha512-def}
+`), 0o644))
+
+	deps, err := parsePNPMLockfile(lockfile)
+	require.NoError(t, err)
+	require.Len(t, deps, 2)
+
+	got := map[string]string{}
+	for _, dep := range deps {
+		got[dep.Name] = dep.Version
+	}
+	assert.Equal(t, "1.14.1", got["axios"])
+	assert.Equal(t, "2.3.4", got["@scope/sdk"])
+}
+
+func TestParseRequirementsFile_StripsMarkersAndInlineComments(t *testing.T) {
+	tmp := t.TempDir()
+	requirements := filepath.Join(tmp, "requirements.txt")
+	require.NoError(t, os.WriteFile(requirements, []byte(`
+django==4.2.0 # security fixture
+Flask==2.3.1 ; python_version >= "3.8"
+requests[security]==2.32.0
+urllib3===2.0.0
+certifi==2024.2.2 --hash=sha256:abc123
+idna==3.6 \
+    --hash=sha256:def456
+requests>=2.28.0
+`), 0o644))
+
+	deps, err := parseRequirementsFile(requirements)
+	require.NoError(t, err)
+	require.Len(t, deps, 6)
+
+	got := map[string]string{}
+	for _, dep := range deps {
+		got[dep.Name] = dep.Version
+	}
+	assert.Equal(t, "4.2.0", got["django"])
+	assert.Equal(t, "2.3.1", got["Flask"])
+	assert.Equal(t, "2.32.0", got["requests"])
+	assert.Equal(t, "2.0.0", got["urllib3"])
+	assert.Equal(t, "2024.2.2", got["certifi"])
+	assert.Equal(t, "3.6", got["idna"])
 }

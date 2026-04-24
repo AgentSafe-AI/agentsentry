@@ -17,6 +17,11 @@ func ParseRequirementsTxtForTest(data []byte) ([]Dependency, error) {
 	return parseRequirementsTxt(data)
 }
 
+// RawGitHubURLForTest exposes rawGitHubURL for unit tests.
+func RawGitHubURLForTest(repoURL, branch, filePath string) (string, bool) {
+	return rawGitHubURL(repoURL, branch, filePath)
+}
+
 // NewBlacklistCheckerWithDataForTest constructs a BlacklistChecker from custom
 // JSON for unit tests, bypassing the embedded blacklist.json.
 func NewBlacklistCheckerWithDataForTest(data []byte) (*BlacklistChecker, error) {

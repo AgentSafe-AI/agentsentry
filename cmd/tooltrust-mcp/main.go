@@ -22,6 +22,7 @@ import (
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 
+	"github.com/AgentSafe-AI/tooltrust-scanner/internal/userhome"
 	localmcp "github.com/AgentSafe-AI/tooltrust-scanner/pkg/adapter/mcp"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/analyzer"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/gateway"
@@ -33,6 +34,8 @@ var version = "dev"
 
 // scanTimeout is the maximum time allowed for a single server scan.
 const scanTimeout = 60 * time.Second
+
+const allowUnsafeLiveScanArg = "allow_unsafe_live_scan"
 
 func main() {
 	help := flag.Bool("help", false, "Show usage information")
@@ -166,6 +169,10 @@ func buildScanServerTool() mcplib.Tool {
 			mcplib.Required(),
 			mcplib.Description(`The exact command used to start the MCP server via stdio. Example: "npx -y @modelcontextprotocol/server-memory"`),
 		),
+		mcplib.WithBoolean(
+			allowUnsafeLiveScanArg,
+			mcplib.Description("Set to true to acknowledge that this launches the target process on the host before ToolTrust can score it."),
+		),
 	)
 }
 
@@ -173,6 +180,9 @@ func handleScanServer(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.
 	command, ok := req.GetArguments()["command"].(string)
 	if !ok || command == "" {
 		return mcplib.NewToolResultError("command argument is required and must be a non-empty string"), nil
+	}
+	if !allowUnsafeLiveScan(req) {
+		return mcplib.NewToolResultError(unsafeLiveScanOptInMessage("tooltrust_scan_server")), nil
 	}
 
 	args, err := shellquote.Split(command)
@@ -190,6 +200,15 @@ func handleScanServer(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.
 	}
 
 	return processTools(ctx, tools)
+}
+
+func allowUnsafeLiveScan(req mcplib.CallToolRequest) bool {
+	value, ok := req.GetArguments()[allowUnsafeLiveScanArg].(bool)
+	return ok && value
+}
+
+func unsafeLiveScanOptInMessage(toolName string) string {
+	return fmt.Sprintf("%s refuses to launch MCP servers without %s=true because the target process runs on the host before ToolTrust can score it", toolName, allowUnsafeLiveScanArg)
 }
 
 // scanLiveServer spawns an MCP server, connects via stdio, lists its tools,
@@ -376,10 +395,14 @@ func buildScanConfigTool() mcplib.Tool {
 				"Returns a summary report with scan results for each server. Servers that fail to start "+
 				"are reported with an error note; scanning continues for remaining servers.",
 		),
+		mcplib.WithBoolean(
+			allowUnsafeLiveScanArg,
+			mcplib.Description("Set to true to acknowledge that configured MCP servers are launched on the host before ToolTrust can score them."),
+		),
 	)
 }
 
-func handleScanConfig(ctx context.Context, _ mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+func handleScanConfig(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
 	configPath, cfg, err := loadMCPConfig()
 	if err != nil {
 		return mcplib.NewToolResultError(err.Error()), nil
@@ -387,6 +410,9 @@ func handleScanConfig(ctx context.Context, _ mcplib.CallToolRequest) (*mcplib.Ca
 
 	if len(cfg.MCPServers) == 0 {
 		return mcplib.NewToolResultText(fmt.Sprintf("No MCP servers configured in %s.", configPath)), nil
+	}
+	if !allowUnsafeLiveScan(req) {
+		return mcplib.NewToolResultError(unsafeLiveScanOptInMessage("tooltrust_scan_config")), nil
 	}
 
 	// Scan all servers in parallel.
@@ -523,7 +549,7 @@ func loadMCPConfig() (string, mcpConfig, error) {
 	}
 
 	// 2. Check ~/.claude.json.
-	home, err := os.UserHomeDir()
+	home, err := userhome.Resolve()
 	if err == nil {
 		claudePath := filepath.Join(home, ".claude.json")
 		if data, err := os.ReadFile(claudePath); err == nil { // #nosec G304 -- path is ~/.claude.json, not user-controlled
@@ -674,6 +700,12 @@ func renderTextReport(result *ScanResult) string {
 		if len(p.Destinations) > 0 {
 			lines = append(lines, fmt.Sprintf("  Destination: %s", strings.Join(p.Destinations, "; ")))
 		}
+		if p.DependencyVisibility != "" {
+			lines = append(lines, fmt.Sprintf("  Dependency visibility: %s", p.DependencyVisibility))
+			if p.DependencyNote != "" {
+				lines = append(lines, fmt.Sprintf("  Dependency note: %s", p.DependencyNote))
+			}
+		}
 		for _, issue := range p.Score.Issues {
 			lines = append(lines, fmt.Sprintf("  [%s] %s: %s",
 				issue.RuleID, issue.Severity, humanizeIssue(issue)))
@@ -810,6 +842,7 @@ func processToolsRaw(ctx context.Context, tools []model.UnifiedTool) (*ScanResul
 			return nil, fmt.Errorf("policy evaluation failed for tool %q: %v", tools[i].Name, evalErr)
 		}
 		policy.Behavior, policy.Destinations = analyzer.SummarizeToolContext(tools[i])
+		policy.DependencyVisibility, policy.DependencyNote = analyzer.DependencyVisibilityForTool(tools[i])
 		policies = append(policies, policy)
 
 		switch policy.Action {

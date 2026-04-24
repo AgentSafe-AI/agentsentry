@@ -123,15 +123,14 @@ func (c *NPMIOCChecker) Check(tool model.UnifiedTool) ([]model.Issue, error) {
 		return nil, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), npmQueryTimeout)
-	defer cancel()
-
 	var issues []model.Issue
 	for _, dep := range deps {
 		if !strings.EqualFold(dep.Ecosystem, "npm") {
 			continue
 		}
-		meta, err := c.client.FetchVersion(ctx, dep.Name, dep.Version)
+		queryCtx, cancel := context.WithTimeout(context.Background(), npmQueryTimeout)
+		meta, err := c.client.FetchVersion(queryCtx, dep.Name, dep.Version)
+		cancel()
 		if err != nil {
 			continue
 		}

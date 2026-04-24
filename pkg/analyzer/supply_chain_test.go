@@ -86,6 +86,25 @@ func TestSupplyChainChecker_CVEFound_CriticalScore(t *testing.T) {
 	assert.Contains(t, issues[0].Description, "lodash@4.17.15")
 }
 
+func TestSupplyChainChecker_CVEFound_CriticalCVSSVector(t *testing.T) {
+	checker := analyzer.NewSupplyChainCheckerWithMock([]analyzer.MockVuln{
+		{ID: "CVE-2024-1234", Summary: "Remote code execution", CVSSScore: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"},
+	}, nil)
+
+	tool := model.UnifiedTool{
+		Name: "vuln_tool",
+		Metadata: map[string]any{
+			"dependencies": []any{
+				map[string]any{"name": "lodash", "version": "4.17.15", "ecosystem": "npm"},
+			},
+		},
+	}
+	issues, err := checker.Check(tool)
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	assert.Equal(t, model.SeverityCritical, issues[0].Severity)
+}
+
 func TestSupplyChainChecker_CVEFound_HighScore(t *testing.T) {
 	checker := analyzer.NewSupplyChainCheckerWithMock([]analyzer.MockVuln{
 		{ID: "CVE-2023-5678", Summary: "Privilege escalation", CVSSScore: "7.5"},
@@ -253,6 +272,32 @@ func TestSupplyChainChecker_RepoURLLockfileDependency_IncludesEvidenceSource(t *
 	assert.Equal(t, "MALICIOUS_PACKAGE", issues[0].Code)
 }
 
+func TestSupplyChainChecker_MetadataDependency_PreservesEvidenceSource(t *testing.T) {
+	checker := analyzer.NewSupplyChainCheckerWithMock([]analyzer.MockVuln{
+		{ID: "CVE-2026-1234", Summary: "Remote code execution", CVSSScore: "9.8"},
+	}, nil)
+
+	tool := model.UnifiedTool{
+		Name: "metadata_tool",
+		Metadata: map[string]any{
+			"dependencies": []map[string]any{
+				{
+					"name":      "axios",
+					"version":   "1.14.1",
+					"ecosystem": "npm",
+					"source":    "local_lockfile",
+				},
+			},
+		},
+	}
+
+	issues, err := checker.Check(tool)
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	assert.Equal(t, "dependency_source", issues[0].Evidence[3].Kind)
+	assert.Equal(t, "local_lockfile", issues[0].Evidence[3].Value)
+}
+
 // ---------------------------------------------------------------------------
 // Lockfile parser unit tests
 // ---------------------------------------------------------------------------
@@ -301,11 +346,16 @@ func TestParseRequirementsTxt(t *testing.T) {
 django==4.2.0
 requests>=2.28.0
 Flask==2.3.1 ; python_requires >= "3.8"
+requests[security]==2.32.0
+urllib3===2.0.0
+certifi==2024.2.2 --hash=sha256:abc123
+idna==3.6 \
+    --hash=sha256:def456
 -r other.txt
 `)
 	deps, err := analyzer.ParseRequirementsTxtForTest(data)
 	require.NoError(t, err)
-	assert.Len(t, deps, 2, "only exact == pins and no -r lines")
+	assert.Len(t, deps, 6, "only exact pins and no -r lines")
 
 	names := make(map[string]string)
 	for _, d := range deps {
@@ -314,6 +364,10 @@ Flask==2.3.1 ; python_requires >= "3.8"
 	}
 	assert.Equal(t, "4.2.0", names["django"])
 	assert.Equal(t, "2.3.1", names["Flask"])
+	assert.Equal(t, "2.32.0", names["requests"])
+	assert.Equal(t, "2.0.0", names["urllib3"])
+	assert.Equal(t, "2024.2.2", names["certifi"])
+	assert.Equal(t, "3.6", names["idna"])
 }
 
 func TestParsePNPMLockYAML(t *testing.T) {
@@ -358,4 +412,39 @@ func TestParseYarnLock(t *testing.T) {
 	}
 	assert.Equal(t, "1.14.1", names["axios"])
 	assert.Equal(t, "2.3.4", names["@scope/sdk"])
+}
+
+func TestParseYarnLock_YarnBerry(t *testing.T) {
+	data := []byte(`
+__metadata:
+  version: 8
+
+"axios@npm:^1.14.1":
+  version: 1.14.1
+
+"@scope/sdk@npm:^2.3.4":
+  version: 2.3.4
+`)
+	deps, err := analyzer.ParseYarnLockForTest(data)
+	require.NoError(t, err)
+	assert.Len(t, deps, 2)
+
+	names := make(map[string]string)
+	for _, d := range deps {
+		names[d.Name] = d.Version
+		assert.Equal(t, "npm", d.Ecosystem)
+	}
+	assert.Equal(t, "1.14.1", names["axios"])
+	assert.Equal(t, "2.3.4", names["@scope/sdk"])
+}
+
+func TestRawGitHubURL_RejectsNonGitHubHostContainingGitHubPath(t *testing.T) {
+	_, ok := analyzer.RawGitHubURLForTest("https://evil.example/github.com/owner/repo", "main", "package-lock.json")
+	assert.False(t, ok)
+}
+
+func TestRawGitHubURL_NormalizesTrailingSlashAndGitSuffix(t *testing.T) {
+	got, ok := analyzer.RawGitHubURLForTest("https://github.com/owner/repo.git/", "main", "package-lock.json")
+	require.True(t, ok)
+	assert.Equal(t, "https://raw.githubusercontent.com/owner/repo/main/package-lock.json", got)
 }

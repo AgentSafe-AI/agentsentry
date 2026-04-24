@@ -18,6 +18,8 @@ import (
 	"github.com/sugarme/tokenizer"
 	"github.com/sugarme/tokenizer/pretrained"
 	"github.com/yalue/onnxruntime_go"
+
+	"github.com/AgentSafe-AI/tooltrust-scanner/internal/userhome"
 )
 
 // Real ONNX and tokenizer URLs for Phase 3 (all-MiniLM-L6-v2 quantized).
@@ -150,7 +152,7 @@ func getONNXSharedLibraryPath() string {
 // EnsureModels downloads the required ONNX and tokenizer files if they don't exist.
 // Returns the absolute paths to the model and tokenizer, or an error.
 func EnsureModels(ctx context.Context) (modelPath, tokenizerPath string, err error) {
-	home, err := os.UserHomeDir()
+	home, err := userhome.Resolve()
 	if err != nil {
 		return "", "", fmt.Errorf("unable to determine user home directory: %w", err)
 	}

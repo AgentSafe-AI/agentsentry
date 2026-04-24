@@ -36,16 +36,26 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Download ToolTrust Scanner
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+        cache-dependency-path: ${{ github.action_path }}/go.sum
+
+    - name: Build ToolTrust Scanner
       shell: bash
       run: |
-        OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-        ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/')"
-        URL="https://github.com/AgentSafe-AI/tooltrust-scanner/releases/latest/download/tooltrust-scanner_${OS}_${ARCH}"
+        BIN="$GITHUB_WORKSPACE/.tooltrust/bin/tooltrust"
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          BIN="${BIN}.exe"
+        fi
+
         mkdir -p "$GITHUB_WORKSPACE/.tooltrust/bin"
-        curl -fsSL "$URL" -o "$GITHUB_WORKSPACE/.tooltrust/bin/tooltrust"
-        chmod +x "$GITHUB_WORKSPACE/.tooltrust/bin/tooltrust"
-        echo "$GITHUB_WORKSPACE/.tooltrust/bin" >> $GITHUB_PATH
+        pushd "$GITHUB_ACTION_PATH" >/dev/null
+        go build -trimpath -o "$BIN" ./cmd/tooltrust-scanner
+        popd >/dev/null
+        chmod +x "$BIN"
+        echo "$GITHUB_WORKSPACE/.tooltrust/bin" >> "$GITHUB_PATH"
 
     - name: Run ToolTrust Scanner
       id: scan
@@ -67,7 +77,7 @@ runs:
         fi
 
         if [ -n "${{ inputs.server }}" ]; then
-          tooltrust scan --server "${{ inputs.server }}" --fail-on "${{ inputs.fail-on }}" $DEEP_SCAN_FLAG --output json --file "$REPORT_FILE" >/dev/null
+          tooltrust scan --server "${{ inputs.server }}" --allow-unsafe-live-scan --fail-on "${{ inputs.fail-on }}" $DEEP_SCAN_FLAG --output json --file "$REPORT_FILE" >/dev/null
         elif [ -n "${{ inputs.input }}" ]; then
           tooltrust scan --input "${{ inputs.input }}" --fail-on "${{ inputs.fail-on }}" $DEEP_SCAN_FLAG --output json --file "$REPORT_FILE" >/dev/null
         else

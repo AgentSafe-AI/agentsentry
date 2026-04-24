@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/AgentSafe-AI/tooltrust-scanner/internal/jsonschema"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
@@ -65,11 +66,11 @@ func SummarizeToolContext(tool model.UnifiedTool) (behavior, destinations []stri
 		}
 	}
 
-	for propName := range tool.InputSchema.Properties {
-		if label := classifyDynamicDestination(propName); label != "" {
+	tool.InputSchema.WalkProperties(func(ref jsonschema.PropertyRef) {
+		if label := classifyDynamicDestination(ref.Path); label != "" {
 			destinationSet[label] = true
 		}
-	}
+	})
 
 	for _, match := range hardcodedURLPattern.FindAllString(string(tool.RawSource), -1) {
 		addHardcodedDestination(destinationSet, match)

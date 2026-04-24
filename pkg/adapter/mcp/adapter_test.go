@@ -103,6 +103,31 @@ func TestAdapter_Parse_MultipleTools(t *testing.T) {
 	assert.Len(t, tools, 2)
 }
 
+func TestAdapter_Parse_JSONRPCListToolsResponse(t *testing.T) {
+	payload := []byte(`{
+		"jsonrpc": "2.0",
+		"id": 1,
+		"result": {
+			"tools": [{
+				"name": "read_file",
+				"description": "Read a file from disk",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"path": {"type": "string"}
+					}
+				}
+			}]
+		}
+	}`)
+
+	tools, err := mcp.NewAdapter().Parse(context.Background(), payload)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+	assert.Equal(t, "read_file", tools[0].Name)
+	assert.Contains(t, tools[0].Permissions, model.PermissionFS)
+}
+
 func TestAdapter_Parse_EmptyList(t *testing.T) {
 	payload := mustMarshal(mcp.ListToolsResponse{Tools: []mcp.Tool{}})
 	tools, err := mcp.NewAdapter().Parse(context.Background(), payload)
@@ -158,6 +183,69 @@ func TestAdapter_Parse_PopulatesSupplyChainMetadata(t *testing.T) {
 	assert.Equal(t, "axios", deps[0]["name"])
 	assert.Equal(t, "1.14.1", deps[0]["version"])
 	assert.Equal(t, "npm", deps[0]["ecosystem"])
+}
+
+func TestAdapter_Parse_PreservesProtocolMeta(t *testing.T) {
+	payload := []byte(`{
+		"tools": [{
+			"name": "deploy_site",
+			"description": "Deploy the site",
+			"_meta": {
+				"repo_url": "https://github.com/example/site",
+				"oauth_scopes": ["repo"],
+				"dependencies": [{
+					"name": "axios",
+					"version": "1.14.1",
+					"ecosystem": "npm",
+					"source": "metadata"
+				}],
+				"timeout_ms": 5000
+			}
+		}]
+	}`)
+
+	tools, err := mcp.NewAdapter().Parse(context.Background(), payload)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+
+	meta := tools[0].Metadata
+	require.NotNil(t, meta)
+	assert.Equal(t, "https://github.com/example/site", meta["repo_url"])
+	assert.Equal(t, []string{"repo"}, meta["oauth_scopes"])
+	assert.Equal(t, float64(5000), meta["timeout_ms"])
+	deps, ok := meta["dependencies"].([]map[string]any)
+	require.True(t, ok)
+	require.Len(t, deps, 1)
+	assert.Equal(t, "metadata", deps[0]["source"])
+}
+
+func TestAdapter_Parse_PreservesDependencySource(t *testing.T) {
+	payload := []byte(`{
+		"tools": [{
+			"name": "deploy_site",
+			"description": "Deploy the site",
+			"metadata": {
+				"dependencies": [{
+					"name": "axios",
+					"version": "1.14.1",
+					"ecosystem": "npm",
+					"source": "local_lockfile"
+				}]
+			}
+		}]
+	}`)
+
+	tools, err := mcp.NewAdapter().Parse(context.Background(), payload)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+
+	deps, ok := tools[0].Metadata["dependencies"].([]map[string]any)
+	require.True(t, ok)
+	require.Len(t, deps, 1)
+	assert.Equal(t, "local_lockfile", deps[0]["source"])
+
+	visibility, _ := analyzer.DependencyVisibilityForTool(tools[0])
+	assert.Equal(t, "Verified from local lockfile", visibility)
 }
 
 func TestAdapter_Parse_PrefersMetadataRepoURL(t *testing.T) {
@@ -290,6 +378,68 @@ func TestAdapter_Parse_ArrayTypeField(t *testing.T) {
 	assert.Equal(t, "GOOGLESHEETS_ADD_SHEET", tools[0].Name)
 	assert.Equal(t, "string", tools[0].InputSchema.Properties["title"].Type)
 	assert.Equal(t, "boolean", tools[0].InputSchema.Properties["hidden"].Type)
+}
+
+func TestAdapter_Parse_PreservesNestedSchemaAndMetadata(t *testing.T) {
+	payload := []byte(`{
+		"tools": [{
+			"name": "deploy",
+			"description": "Deploy to a remote endpoint",
+			"metadata": {
+				"oauth_scopes": ["repo"],
+				"timeout_ms": 5000
+			},
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"auth": {
+						"type": "object",
+						"properties": {
+							"client_secret": {"type": "string"}
+						}
+					},
+					"request": {
+						"type": "object",
+						"properties": {
+							"url": {"type": "string"},
+							"timeout": {"type": "integer"}
+						}
+					}
+				}
+			}
+		}]
+	}`)
+
+	tools, err := mcp.NewAdapter().Parse(context.Background(), payload)
+	require.NoError(t, err)
+	require.Len(t, tools, 1)
+
+	tool := tools[0]
+	require.NotNil(t, tool.Metadata)
+	assert.Equal(t, []string{"repo"}, tool.Metadata["oauth_scopes"])
+	assert.Equal(t, float64(5000), tool.Metadata["timeout_ms"])
+	assert.Equal(t, 5, tool.InputSchema.PropertyCount())
+	assert.Equal(t, "string", tool.InputSchema.Properties["auth"].Properties["client_secret"].Type)
+	assert.Equal(t, "string", tool.InputSchema.Properties["request"].Properties["url"].Type)
+
+	scanner, err := analyzer.NewScanner(false, "")
+	require.NoError(t, err)
+	score, err := scanner.Scan(context.Background(), tool)
+	require.NoError(t, err)
+	assertIssue := func(ruleID string) {
+		t.Helper()
+		for _, issue := range score.Issues {
+			if issue.RuleID == ruleID {
+				return
+			}
+		}
+		t.Fatalf("expected %s in scan issues, got %#v", ruleID, score.Issues)
+	}
+	assertIssue("AS-005")
+	assertIssue("AS-010")
+	for _, issue := range score.Issues {
+		require.NotEqual(t, "AS-011", issue.RuleID, "nested timeout signal should suppress AS-011")
+	}
 }
 
 func mustMarshal(v any) []byte {

@@ -171,3 +171,25 @@ func TestSummarizeToolContext_ClassifiesHardcodedAPIEndpoint(t *testing.T) {
 
 	assert.Contains(t, destinations, "hardcoded API endpoint: api.postmarkapp.com")
 }
+
+func TestSummarizeToolContext_UsesNestedURLInput(t *testing.T) {
+	tool := model.UnifiedTool{
+		Name:        "fetch_remote",
+		Description: "Fetch a remote resource over HTTPS.",
+		Permissions: []model.Permission{model.PermissionNetwork},
+		InputSchema: jsonschema.Schema{
+			Properties: map[string]jsonschema.Property{
+				"request": {
+					Type: "object",
+					Properties: map[string]jsonschema.Property{
+						"url": {Type: "string"},
+					},
+				},
+			},
+		},
+	}
+
+	_, destinations := SummarizeToolContext(tool)
+
+	assert.Equal(t, []string{"dynamic URL input (request.url)"}, destinations)
+}

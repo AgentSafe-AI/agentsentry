@@ -54,7 +54,7 @@ func (c *PermissionChecker) Check(tool model.UnifiedTool) ([]model.Issue, error)
 		})
 	}
 
-	if propCount := len(tool.InputSchema.Properties); propCount > largeSchemaPropThreshold {
+	if propCount := tool.InputSchema.PropertyCount(); propCount > largeSchemaPropThreshold {
 		issues = append(issues, model.Issue{
 			RuleID:      "AS-002",
 			ToolName:    tool.Name,

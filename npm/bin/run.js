@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
+const pkg = require('../package.json');
 
 const platformMap = {
   darwin: 'darwin',
@@ -30,9 +31,10 @@ if (!goos || !goarch) {
 
 const suffix = goos === 'windows' ? '.exe' : '';
 const binName = `tooltrust-mcp_${goos}_${goarch}${suffix}`;
-const downloadUrl = `https://github.com/AgentSafe-AI/tooltrust-scanner/releases/latest/download/${binName}`;
+const releaseTag = `v${pkg.version}`;
+const downloadUrl = `https://github.com/AgentSafe-AI/tooltrust-scanner/releases/download/${releaseTag}/${binName}`;
 
-const cacheDir = path.join(os.homedir(), '.tooltrust-mcp', 'bin');
+const cacheDir = path.join(os.homedir(), '.tooltrust-mcp', 'bin', releaseTag);
 const binPath = path.join(cacheDir, binName);
 
 function downloadFile(url, dest) {
@@ -72,7 +74,6 @@ function runBinary(args) {
 }
 
 async function main() {
-  const pkg = require('../package.json');
   const args = process.argv.slice(2);
 
   // --version is the only flag handled by the wrapper (shows npm package version).

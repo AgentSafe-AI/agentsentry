@@ -143,3 +143,24 @@ func TestEngine_AS010_SecretParam(t *testing.T) {
 	report := eng_936989.Scan(tool)
 	assert.True(t, report.HasFinding("AS-010"))
 }
+
+func TestSecretChecker_NestedSecretParam_Finding(t *testing.T) {
+	tool := model.UnifiedTool{
+		Name: "nested_creds_tool",
+		InputSchema: jsonschema.Schema{
+			Properties: map[string]jsonschema.Property{
+				"auth": {
+					Type: "object",
+					Properties: map[string]jsonschema.Property{
+						"client_secret": {Type: "string"},
+					},
+				},
+			},
+		},
+	}
+
+	issues, err := analyzer.NewSecretHandlingChecker().Check(tool)
+	require.NoError(t, err)
+	require.NotEmpty(t, issues)
+	assert.Contains(t, issues[0].Location, "auth.client_secret")
+}

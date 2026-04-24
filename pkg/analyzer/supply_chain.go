@@ -7,7 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -19,11 +22,11 @@ import (
 
 const (
 	osvAPIURL          = "https://api.osv.dev/v1/query"
-	osvQueryTimeout    = 10 * time.Second
-	osvTotalTimeout    = 30 * time.Second
 	lockfileFetchLimit = 5 << 20 // 5 MB per lockfile
 	maxOSVConcurrency  = 5
 )
+
+var osvQueryTimeout = 10 * time.Second
 
 // ── Data types ────────────────────────────────────────────────────────────────
 
@@ -36,6 +39,7 @@ type Dependency struct {
 	Name      string `json:"name"`
 	Version   string `json:"version"`
 	Ecosystem string `json:"ecosystem"` // e.g. "npm", "Go", "PyPI"
+	Source    string `json:"source,omitempty"`
 }
 
 type dependencyEvidence struct {
@@ -296,19 +300,45 @@ func parseRequirementsTxt(data []byte) ([]Dependency, error) {
 		if i := strings.IndexByte(line, ';'); i >= 0 {
 			line = strings.TrimSpace(line[:i])
 		}
-		// Only exact pins (==) are meaningful for CVE lookup
-		if idx := strings.Index(line, "=="); idx > 0 {
-			name := strings.TrimSpace(line[:idx])
-			version := strings.TrimSpace(line[idx+2:])
-			if name != "" && version != "" {
-				deps = append(deps, Dependency{Name: name, Version: version, Ecosystem: "PyPI"})
-			}
+		// Only exact pins are meaningful for CVE lookup.
+		name, version, ok := splitPythonExactPin(line)
+		if ok {
+			deps = append(deps, Dependency{Name: name, Version: version, Ecosystem: "PyPI"})
 		}
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("parse requirements.txt: %w", err)
 	}
 	return deps, nil
+}
+
+func splitPythonExactPin(line string) (name, version string, ok bool) {
+	if idx := strings.Index(line, "==="); idx > 0 {
+		name = normalizePythonPackageName(strings.TrimSpace(line[:idx]))
+		version = normalizePythonPackageVersion(line[idx+3:])
+		return name, version, name != "" && version != ""
+	}
+	if idx := strings.Index(line, "=="); idx > 0 {
+		name = normalizePythonPackageName(strings.TrimSpace(line[:idx]))
+		version = normalizePythonPackageVersion(line[idx+2:])
+		return name, version, name != "" && version != ""
+	}
+	return "", "", false
+}
+
+func normalizePythonPackageVersion(version string) string {
+	fields := strings.Fields(strings.TrimSpace(version))
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.TrimSuffix(fields[0], "\\")
+}
+
+func normalizePythonPackageName(name string) string {
+	if idx := strings.IndexByte(name, '['); idx >= 0 {
+		name = name[:idx]
+	}
+	return strings.TrimSpace(name)
 }
 
 type pnpmLockfile struct {
@@ -365,44 +395,77 @@ func parseYarnLock(data []byte) ([]Dependency, error) {
 		if line == "" || strings.HasPrefix(line, "#") || !strings.HasSuffix(line, ":") {
 			continue
 		}
-		if strings.Contains(line, " version ") {
+		header := strings.TrimSuffix(line, ":")
+		if header == "__metadata" || strings.Contains(line, " version ") {
 			continue
 		}
+		version := ""
 
 		for j := i + 1; j < len(lines); j++ {
+			if !strings.HasPrefix(lines[j], " ") && !strings.HasPrefix(lines[j], "\t") {
+				break
+			}
 			next := strings.TrimSpace(lines[j])
 			if next == "" {
 				break
 			}
-			if strings.HasPrefix(next, "version ") {
-				version := strings.Trim(next[len("version "):], "\"")
-				specs := strings.Split(strings.TrimSuffix(line, ":"), ",")
-				for _, spec := range specs {
-					spec = strings.Trim(strings.TrimSpace(spec), "\"")
-					if spec == "" {
-						continue
-					}
-					idx := strings.LastIndex(spec, "@")
-					if idx <= 0 || idx == len(spec)-1 {
-						continue
-					}
-					name := spec[:idx]
-					k := name + "@" + version
-					if seen[k] {
-						continue
-					}
-					seen[k] = true
-					deps = append(deps, Dependency{Name: name, Version: version, Ecosystem: "npm"})
-				}
+			switch {
+			case strings.HasPrefix(next, "version "):
+				version = strings.Trim(strings.TrimSpace(next[len("version "):]), "\"'")
+			case strings.HasPrefix(next, "version:"):
+				version = strings.Trim(strings.TrimSpace(next[len("version:"):]), "\"'")
+			}
+			if version != "" {
 				break
 			}
-			if !strings.HasPrefix(lines[j], " ") && !strings.HasPrefix(lines[j], "\t") {
-				break
+		}
+		if version == "" {
+			continue
+		}
+		specs := strings.Split(header, ",")
+		for _, spec := range specs {
+			spec = strings.Trim(strings.TrimSpace(spec), "\"'")
+			if spec == "" {
+				continue
 			}
+			name, ok := parseYarnPackageName(spec)
+			if !ok {
+				continue
+			}
+			k := name + "@" + version
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			deps = append(deps, Dependency{Name: name, Version: version, Ecosystem: "npm"})
 		}
 	}
 
 	return deps, nil
+}
+
+func parseYarnPackageName(spec string) (string, bool) {
+	spec = strings.TrimSpace(strings.Trim(spec, "\"'"))
+	if spec == "" {
+		return "", false
+	}
+	if strings.HasPrefix(spec, "@") {
+		slash := strings.Index(spec, "/")
+		if slash < 0 {
+			return "", false
+		}
+		rest := spec[slash+1:]
+		at := strings.Index(rest, "@")
+		if at < 0 {
+			return "", false
+		}
+		return spec[:slash+1+at], true
+	}
+	at := strings.Index(spec, "@")
+	if at <= 0 {
+		return "", false
+	}
+	return spec[:at], true
 }
 
 // fetchLockfileDeps fetches and parses lockfiles from a GitHub repository URL.
@@ -455,13 +518,32 @@ func fetchLockfileDeps(repoURL string) []Dependency {
 // rawGitHubURL converts a github.com URL to raw.githubusercontent.com for
 // the given branch and file path.  Returns ("", false) for non-GitHub URLs.
 func rawGitHubURL(repoURL, branch, filePath string) (string, bool) {
-	clean := strings.TrimSuffix(strings.TrimSpace(repoURL), ".git")
-	clean = strings.TrimPrefix(clean, "git+")
-	if !strings.Contains(clean, "github.com/") {
+	clean := strings.TrimPrefix(strings.TrimSpace(repoURL), "git+")
+	parsed, err := url.Parse(clean)
+	if err != nil {
 		return "", false
 	}
-	raw := strings.Replace(clean, "github.com/", "raw.githubusercontent.com/", 1)
-	return fmt.Sprintf("%s/%s/%s", raw, branch, filePath), true
+	if parsed.Scheme != "https" && parsed.Scheme != "http" {
+		return "", false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if host != "github.com" && host != "www.github.com" {
+		return "", false
+	}
+
+	repoPath := strings.Trim(parsed.Path, "/")
+	repoPath = strings.TrimSuffix(repoPath, ".git")
+	parts := strings.Split(repoPath, "/")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return "", false
+	}
+
+	branch = strings.Trim(branch, "/")
+	filePath = strings.TrimPrefix(strings.ReplaceAll(filePath, "\\", "/"), "/")
+	if branch == "" || filePath == "" {
+		return "", false
+	}
+	return fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s", parts[0], parts[1], branch, filePath), true
 }
 
 // mergeDependencies merges two dep slices, deduplicating by ecosystem+name+version.
@@ -522,9 +604,6 @@ func (c *SupplyChainChecker) Check(tool model.UnifiedTool) ([]model.Issue, error
 		return nil, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), osvTotalTimeout)
-	defer cancel()
-
 	// Query OSV in parallel (capped at maxOSVConcurrency goroutines).
 	ch := make(chan []model.Issue, len(deps))
 	sem := make(chan struct{}, maxOSVConcurrency)
@@ -538,7 +617,10 @@ func (c *SupplyChainChecker) Check(tool model.UnifiedTool) ([]model.Issue, error
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			vulns, qErr := c.client.Query(ctx, dep.Dependency)
+			queryCtx, cancel := context.WithTimeout(context.Background(), osvQueryTimeout)
+			defer cancel()
+
+			vulns, qErr := c.client.Query(queryCtx, dep.Dependency)
 			if qErr != nil {
 				ch <- nil
 				return
@@ -642,9 +724,13 @@ func collectDependencies(tool model.UnifiedTool) ([]dependencyEvidence, error) {
 			continue
 		}
 		seen[k] = true
+		source := dep.Source
+		if source == "" {
+			source = "metadata"
+		}
 		result = append(result, dependencyEvidence{
 			Dependency: dep,
-			Source:     "metadata",
+			Source:     source,
 		})
 	}
 
@@ -682,8 +768,8 @@ func osvSeverityToModel(v osvVuln) model.Severity {
 }
 
 func cvssScoreToSeverity(score string) model.Severity {
-	var f float64
-	if _, err := fmt.Sscanf(score, "%f", &f); err != nil {
+	f, ok := parseCVSSScore(score)
+	if !ok {
 		return model.SeverityHigh
 	}
 	switch {
@@ -696,4 +782,111 @@ func cvssScoreToSeverity(score string) model.Severity {
 	default:
 		return model.SeverityLow
 	}
+}
+
+func parseCVSSScore(score string) (float64, bool) {
+	score = strings.TrimSpace(score)
+	if score == "" {
+		return 0, false
+	}
+	if f, err := strconv.ParseFloat(score, 64); err == nil {
+		return f, true
+	}
+	if strings.HasPrefix(score, "CVSS:3.") {
+		return cvssV3BaseScore(score)
+	}
+	return 0, false
+}
+
+func cvssV3BaseScore(vector string) (float64, bool) {
+	metrics := parseCVSSVector(vector)
+	scope := metrics["S"]
+	av, ok := mapMetric(metrics["AV"], map[string]float64{"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2})
+	if !ok {
+		return 0, false
+	}
+	ac, ok := mapMetric(metrics["AC"], map[string]float64{"L": 0.77, "H": 0.44})
+	if !ok {
+		return 0, false
+	}
+	pr, ok := cvssPrivilegeRequired(metrics["PR"], scope)
+	if !ok {
+		return 0, false
+	}
+	ui, ok := mapMetric(metrics["UI"], map[string]float64{"N": 0.85, "R": 0.62})
+	if !ok {
+		return 0, false
+	}
+	conf, ok := mapMetric(metrics["C"], map[string]float64{"H": 0.56, "L": 0.22, "N": 0})
+	if !ok {
+		return 0, false
+	}
+	integrity, ok := mapMetric(metrics["I"], map[string]float64{"H": 0.56, "L": 0.22, "N": 0})
+	if !ok {
+		return 0, false
+	}
+	avail, ok := mapMetric(metrics["A"], map[string]float64{"H": 0.56, "L": 0.22, "N": 0})
+	if !ok {
+		return 0, false
+	}
+
+	impactSubScore := 1 - ((1 - conf) * (1 - integrity) * (1 - avail))
+	var impact float64
+	switch scope {
+	case "U":
+		impact = 6.42 * impactSubScore
+	case "C":
+		impact = 7.52*(impactSubScore-0.029) - 3.25*math.Pow(impactSubScore-0.02, 15)
+	default:
+		return 0, false
+	}
+	if impact <= 0 {
+		return 0, true
+	}
+
+	exploitability := 8.22 * av * ac * pr * ui
+	if scope == "C" {
+		return roundUp1(math.Min(1.08*(impact+exploitability), 10)), true
+	}
+	return roundUp1(math.Min(impact+exploitability, 10)), true
+}
+
+func parseCVSSVector(vector string) map[string]string {
+	out := map[string]string{}
+	for _, part := range strings.Split(vector, "/") {
+		key, value, ok := strings.Cut(part, ":")
+		if !ok || key == "CVSS" {
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func mapMetric(value string, weights map[string]float64) (float64, bool) {
+	f, ok := weights[value]
+	return f, ok
+}
+
+func cvssPrivilegeRequired(value, scope string) (float64, bool) {
+	switch value {
+	case "N":
+		return 0.85, true
+	case "L":
+		if scope == "C" {
+			return 0.68, true
+		}
+		return 0.62, scope == "U"
+	case "H":
+		if scope == "C" {
+			return 0.5, true
+		}
+		return 0.27, scope == "U"
+	default:
+		return 0, false
+	}
+}
+
+func roundUp1(f float64) float64 {
+	return math.Ceil(f*10) / 10
 }

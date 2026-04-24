@@ -21,6 +21,14 @@ import (
 )
 
 func scanLiveServer(ctx context.Context, serverCmd string) ([]model.UnifiedTool, error) {
+	args, err := parseServerCommand(serverCmd)
+	if err != nil {
+		return nil, err
+	}
+	return scanLiveServerArgs(ctx, args, serverCmd)
+}
+
+func parseServerCommand(serverCmd string) ([]string, error) {
 	args, err := shellquote.Split(serverCmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse server command: %w", err)
@@ -28,11 +36,22 @@ func scanLiveServer(ctx context.Context, serverCmd string) ([]model.UnifiedTool,
 	if len(args) == 0 {
 		return nil, fmt.Errorf("empty server command")
 	}
+	return args, nil
+}
 
-	importTransport := true
-	_ = importTransport // To avoid unused variable issue during plan stage if I mess up imports
+func formatCommand(args []string) string {
+	return shellquote.Join(args...)
+}
 
-	spinner, err := pterm.DefaultSpinner.Start("🔌 Connecting to live MCP server: " + serverCmd)
+func scanLiveServerArgs(ctx context.Context, args []string, displayCmd string) ([]model.UnifiedTool, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("empty server command")
+	}
+	if strings.TrimSpace(displayCmd) == "" {
+		displayCmd = formatCommand(args)
+	}
+
+	spinner, err := pterm.DefaultSpinner.Start("🔌 Connecting to live MCP server: " + displayCmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start spinner: %w", err)
 	}
@@ -313,9 +332,6 @@ func parseNodeLockfile(path string) ([]nodeDependency, error) {
 
 func detectLocalProjectRoot(args []string) string {
 	candidates := []string{}
-	if cwd, err := os.Getwd(); err == nil {
-		candidates = append(candidates, cwd)
-	}
 	for _, arg := range args {
 		if arg == "" || strings.HasPrefix(arg, "-") {
 			continue
@@ -429,18 +445,50 @@ func parseRequirementsFile(path string) ([]nodeDependency, error) {
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
 			continue
 		}
-		if i := strings.Index(line, "=="); i > 0 {
-			name := strings.TrimSpace(line[:i])
-			version := strings.TrimSpace(line[i+2:])
-			if name != "" && version != "" {
-				deps = append(deps, nodeDependency{Name: name, Version: version, Ecosystem: "PyPI", Source: "local_lockfile"})
-			}
+		if i := strings.IndexByte(line, '#'); i >= 0 {
+			line = strings.TrimSpace(line[:i])
+		}
+		if i := strings.IndexByte(line, ';'); i >= 0 {
+			line = strings.TrimSpace(line[:i])
+		}
+		name, version, ok := splitPythonRequirementExactPin(line)
+		if ok {
+			deps = append(deps, nodeDependency{Name: name, Version: version, Ecosystem: "PyPI", Source: "local_lockfile"})
 		}
 	}
 	if err := sc.Err(); err != nil {
 		return nil, fmt.Errorf("scan requirements.txt %s: %w", path, err)
 	}
 	return deps, nil
+}
+
+func splitPythonRequirementExactPin(line string) (name, version string, ok bool) {
+	if idx := strings.Index(line, "==="); idx > 0 {
+		name = normalizePythonRequirementName(strings.TrimSpace(line[:idx]))
+		version = normalizePythonRequirementVersion(line[idx+3:])
+		return name, version, name != "" && version != ""
+	}
+	if idx := strings.Index(line, "=="); idx > 0 {
+		name = normalizePythonRequirementName(strings.TrimSpace(line[:idx]))
+		version = normalizePythonRequirementVersion(line[idx+2:])
+		return name, version, name != "" && version != ""
+	}
+	return "", "", false
+}
+
+func normalizePythonRequirementVersion(version string) string {
+	fields := strings.Fields(strings.TrimSpace(version))
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.TrimSuffix(fields[0], "\\")
+}
+
+func normalizePythonRequirementName(name string) string {
+	if idx := strings.IndexByte(name, '['); idx >= 0 {
+		name = name[:idx]
+	}
+	return strings.TrimSpace(name)
 }
 
 func parsePNPMLockfile(path string) ([]nodeDependency, error) {
@@ -453,20 +501,13 @@ func parsePNPMLockfile(path string) ([]nodeDependency, error) {
 	var deps []nodeDependency
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "/") && !strings.HasPrefix(trimmed, "'/") {
+		if !strings.HasPrefix(trimmed, "/") && !strings.HasPrefix(trimmed, "'/") && !strings.HasPrefix(trimmed, "\"/") {
 			continue
 		}
-		trimmed = strings.Trim(trimmed, "'")
-		trimmed = strings.TrimSuffix(trimmed, ":")
-		trimmed = strings.TrimPrefix(trimmed, "/")
-		if trimmed == "" {
+		name, version, ok := parsePNPMLockKey(trimmed)
+		if !ok {
 			continue
 		}
-		idx := strings.LastIndex(trimmed, "@")
-		if idx <= 0 || idx == len(trimmed)-1 {
-			continue
-		}
-		name, version := trimmed[:idx], trimmed[idx+1:]
 		k := name + "@" + version
 		if seen[k] {
 			continue
@@ -475,6 +516,24 @@ func parsePNPMLockfile(path string) ([]nodeDependency, error) {
 		deps = append(deps, nodeDependency{Name: name, Version: version, Ecosystem: "npm", Source: "local_lockfile"})
 	}
 	return deps, nil
+}
+
+func parsePNPMLockKey(key string) (name, version string, ok bool) {
+	trimmed := strings.TrimSpace(key)
+	trimmed = strings.Trim(trimmed, "'\"")
+	trimmed = strings.TrimSuffix(trimmed, ":")
+	trimmed = strings.TrimPrefix(trimmed, "/")
+	if trimmed == "" {
+		return "", "", false
+	}
+	if idx := strings.Index(trimmed, "("); idx >= 0 {
+		trimmed = trimmed[:idx]
+	}
+	idx := strings.LastIndex(trimmed, "@")
+	if idx <= 0 || idx == len(trimmed)-1 {
+		return "", "", false
+	}
+	return trimmed[:idx], trimmed[idx+1:], true
 }
 
 func parseYarnLockfile(path string) ([]nodeDependency, error) {
@@ -490,40 +549,73 @@ func parseYarnLockfile(path string) ([]nodeDependency, error) {
 		if line == "" || strings.HasPrefix(line, "#") || !strings.HasSuffix(line, ":") {
 			continue
 		}
-		if strings.Contains(line, " version ") {
+		header := strings.TrimSuffix(line, ":")
+		if header == "__metadata" || strings.Contains(line, " version ") {
 			continue
 		}
+		version := ""
 		for j := i + 1; j < len(lines); j++ {
+			if !strings.HasPrefix(lines[j], " ") && !strings.HasPrefix(lines[j], "\t") {
+				break
+			}
 			next := strings.TrimSpace(lines[j])
 			if next == "" {
 				break
 			}
-			if strings.HasPrefix(next, "version ") {
-				version := strings.Trim(next[len("version "):], "\"")
-				specs := strings.Split(strings.TrimSuffix(line, ":"), ",")
-				for _, spec := range specs {
-					spec = strings.Trim(strings.TrimSpace(spec), "\"")
-					if spec == "" {
-						continue
-					}
-					idx := strings.LastIndex(spec, "@")
-					if idx <= 0 {
-						continue
-					}
-					name := spec[:idx]
-					k := name + "@" + version
-					if seen[k] {
-						continue
-					}
-					seen[k] = true
-					deps = append(deps, nodeDependency{Name: name, Version: version, Ecosystem: "npm", Source: "local_lockfile"})
-				}
-				break
+			switch {
+			case strings.HasPrefix(next, "version "):
+				version = strings.Trim(strings.TrimSpace(next[len("version "):]), "\"'")
+			case strings.HasPrefix(next, "version:"):
+				version = strings.Trim(strings.TrimSpace(next[len("version:"):]), "\"'")
 			}
-			if !strings.HasPrefix(lines[j], " ") && !strings.HasPrefix(lines[j], "\t") {
+			if version != "" {
 				break
 			}
 		}
+		if version == "" {
+			continue
+		}
+		specs := strings.Split(header, ",")
+		for _, spec := range specs {
+			spec = strings.Trim(strings.TrimSpace(spec), "\"'")
+			if spec == "" {
+				continue
+			}
+			name, ok := parseYarnPackageName(spec)
+			if !ok {
+				continue
+			}
+			k := name + "@" + version
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			deps = append(deps, nodeDependency{Name: name, Version: version, Ecosystem: "npm", Source: "local_lockfile"})
+		}
 	}
 	return deps, nil
+}
+
+func parseYarnPackageName(spec string) (string, bool) {
+	spec = strings.TrimSpace(strings.Trim(spec, "\"'"))
+	if spec == "" {
+		return "", false
+	}
+	if strings.HasPrefix(spec, "@") {
+		slash := strings.Index(spec, "/")
+		if slash < 0 {
+			return "", false
+		}
+		rest := spec[slash+1:]
+		at := strings.Index(rest, "@")
+		if at < 0 {
+			return "", false
+		}
+		return spec[:slash+1+at], true
+	}
+	at := strings.Index(spec, "@")
+	if at <= 0 {
+		return "", false
+	}
+	return spec[:at], true
 }

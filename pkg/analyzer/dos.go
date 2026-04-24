@@ -3,6 +3,7 @@ package analyzer
 import (
 	"strings"
 
+	"github.com/AgentSafe-AI/tooltrust-scanner/internal/jsonschema"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
@@ -82,13 +83,18 @@ func hasRateLimitSignal(tool model.UnifiedTool) bool {
 		}
 	}
 	// Check input schema property names
-	for propName := range tool.InputSchema.Properties {
-		propLower := strings.ToLower(propName)
+	found := false
+	tool.InputSchema.WalkProperties(func(ref jsonschema.PropertyRef) {
+		if found {
+			return
+		}
+		propLower := strings.ToLower(ref.Path)
 		for _, indicator := range rateLimitIndicators {
 			if strings.Contains(propLower, indicator) {
-				return true
+				found = true
+				return
 			}
 		}
-	}
-	return false
+	})
+	return found
 }

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
@@ -73,6 +75,19 @@ func TestGateDecision_Force_Bypasses(t *testing.T) {
 	got := gateDecision(model.GradeF, model.GradeF, true)
 	if !got {
 		t.Error("expected --force to bypass grade F block")
+	}
+}
+
+func TestRunGate_RequiresUnsafeLiveScanOptIn(t *testing.T) {
+	err := runGate(context.Background(), gateOpts{
+		packageName: "@modelcontextprotocol/server-memory",
+		dryRun:      true,
+	}, false)
+	if err == nil {
+		t.Fatal("expected gate to refuse unsafe live scan without opt-in")
+	}
+	if !strings.Contains(err.Error(), "--allow-unsafe-live-scan") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

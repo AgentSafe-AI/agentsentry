@@ -13,6 +13,7 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 
+	"github.com/AgentSafe-AI/tooltrust-scanner/internal/userhome"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/analyzer"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/gateway"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
@@ -41,6 +42,7 @@ func (e *blockedError) Error() string {
 
 func newGateCmd() *cobra.Command {
 	var opts gateOpts
+	var allowUnsafeLiveScan bool
 
 	cmd := &cobra.Command{
 		Use:   "gate <package> [-- extra-args...]",
@@ -52,11 +54,11 @@ the grade threshold.
   Grade A/B → auto-install
   Grade C/D → prompt for confirmation
   Grade F   → block installation`,
-		Example: `  tooltrust-scanner gate @modelcontextprotocol/server-memory -- /tmp
-  tooltrust-scanner gate --dry-run @modelcontextprotocol/server-filesystem -- /tmp
-  tooltrust-scanner gate --name my-server @some/package
-  tooltrust-scanner gate --block-on D @some/package
-  tooltrust-scanner gate --scope user @some/package`,
+		Example: `  tooltrust-scanner gate --allow-unsafe-live-scan @modelcontextprotocol/server-memory -- /tmp
+  tooltrust-scanner gate --allow-unsafe-live-scan --dry-run @modelcontextprotocol/server-filesystem -- /tmp
+  tooltrust-scanner gate --allow-unsafe-live-scan --name my-server @some/package
+  tooltrust-scanner gate --allow-unsafe-live-scan --block-on D @some/package
+  tooltrust-scanner gate --allow-unsafe-live-scan --scope user @some/package`,
 		Args:               cobra.MinimumNArgs(1),
 		DisableFlagParsing: false,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -66,7 +68,7 @@ the grade threshold.
 				opts.extraArgs = args[dashIdx:]
 			}
 
-			err := runGate(cmd.Context(), opts)
+			err := runGate(cmd.Context(), opts, allowUnsafeLiveScan)
 			if err != nil {
 				if _, ok := err.(*blockedError); ok {
 					// Exit 1 for policy block
@@ -88,19 +90,23 @@ the grade threshold.
 	cmd.Flags().StringVar(&opts.scope, "scope", "project", "config scope: project (writes .mcp.json) or user (writes ~/.claude.json)")
 	cmd.Flags().BoolVar(&opts.deepScan, "deep-scan", false, "enable AI-based semantic analysis (pass-through to scanner)")
 	cmd.Flags().StringVar(&opts.rulesDir, "rules-dir", "", "custom YAML rules directory (pass-through to scanner)")
+	cmd.Flags().BoolVar(&allowUnsafeLiveScan, "allow-unsafe-live-scan", false, "acknowledge that gate executes the package on the host before ToolTrust can score it")
 
 	return cmd
 }
 
-func runGate(ctx context.Context, opts gateOpts) error {
+func runGate(ctx context.Context, opts gateOpts, allowUnsafeLiveScan bool) error {
 	// Derive server name.
 	serverName := opts.name
 	if serverName == "" {
 		serverName = deriveServerName(opts.packageName)
 	}
+	if !allowUnsafeLiveScan {
+		return fmt.Errorf("gate refuses to execute %q without --allow-unsafe-live-scan because the target package runs on the host before ToolTrust can score it", opts.packageName)
+	}
 
-	// Build the npx command string for scanning.
-	serverCmd := buildServerCommand(opts.packageName, opts.extraArgs)
+	serverArgs := buildServerArgs(opts.packageName, opts.extraArgs)
+	serverCmd := formatCommand(serverArgs)
 
 	pterm.Info.Printfln("Scanning server: %s", serverCmd)
 	pterm.Info.Printfln("Server name: %s", serverName)
@@ -110,7 +116,7 @@ func runGate(ctx context.Context, opts gateOpts) error {
 	liveCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	tools, err := scanLiveServer(liveCtx, serverCmd)
+	tools, err := scanLiveServerArgs(liveCtx, serverArgs, serverCmd)
 	if err != nil {
 		return fmt.Errorf("live server scan failed: %w", err)
 	}
@@ -133,7 +139,7 @@ func runGate(ctx context.Context, opts gateOpts) error {
 			return fmt.Errorf("gateway evaluation failed for tool %q: %w", tools[i].Name, evalErr)
 		}
 		policy.Behavior, policy.Destinations = analyzer.SummarizeToolContext(tools[i])
-		policy.DependencyVisibility, policy.DependencyNote = dependencyVisibilityForTool(tools[i])
+		policy.DependencyVisibility, policy.DependencyNote = analyzer.DependencyVisibilityForTool(tools[i])
 		policies = append(policies, policy)
 	}
 
@@ -204,11 +210,14 @@ func deriveServerName(packageName string) string {
 	return packageName
 }
 
+func buildServerArgs(packageName string, extraArgs []string) []string {
+	parts := []string{"npx", "-y", packageName}
+	return append(parts, extraArgs...)
+}
+
 // buildServerCommand builds the npx command string for running the server.
 func buildServerCommand(packageName string, extraArgs []string) string {
-	parts := []string{"npx", "-y", packageName}
-	parts = append(parts, extraArgs...)
-	return strings.Join(parts, " ")
+	return formatCommand(buildServerArgs(packageName, extraArgs))
 }
 
 // parseGrade converts a grade string to a model.Grade.
@@ -379,7 +388,7 @@ func resolveConfigPath(scope string) (string, error) {
 	case "project":
 		return ".mcp.json", nil
 	case "user":
-		home, err := os.UserHomeDir()
+		home, err := userhome.Resolve()
 		if err != nil {
 			return "", fmt.Errorf("failed to determine home directory: %w", err)
 		}

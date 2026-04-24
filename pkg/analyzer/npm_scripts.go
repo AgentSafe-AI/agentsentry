@@ -14,8 +14,9 @@ import (
 
 const (
 	npmRegistryVersionURL = "https://registry.npmjs.org"
-	npmQueryTimeout       = 8 * time.Second
 )
+
+var npmQueryTimeout = 8 * time.Second
 
 var suspiciousNPMScriptKeys = []string{
 	"preinstall",
@@ -44,6 +45,77 @@ type npmVersionResponse struct {
 	OptionalDependencies map[string]string `json:"optionalDependencies"`
 	BundleDependencies   []string          `json:"bundleDependencies"`
 	BundledDependencies  []string          `json:"bundledDependencies"`
+}
+
+func (r *npmVersionResponse) UnmarshalJSON(data []byte) error {
+	var wire struct {
+		Name                 string            `json:"name"`
+		Version              string            `json:"version"`
+		Scripts              map[string]string `json:"scripts"`
+		Dependencies         map[string]string `json:"dependencies"`
+		OptionalDependencies map[string]string `json:"optionalDependencies"`
+		BundleDependencies   json.RawMessage   `json:"bundleDependencies"`
+		BundledDependencies  json.RawMessage   `json:"bundledDependencies"`
+	}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+
+	bundleDeps, err := decodeNPMStringList(wire.BundleDependencies, "bundleDependencies")
+	if err != nil {
+		return err
+	}
+	bundledDeps, err := decodeNPMStringList(wire.BundledDependencies, "bundledDependencies")
+	if err != nil {
+		return err
+	}
+
+	*r = npmVersionResponse{
+		Name:                 wire.Name,
+		Version:              wire.Version,
+		Scripts:              wire.Scripts,
+		Dependencies:         wire.Dependencies,
+		OptionalDependencies: wire.OptionalDependencies,
+		BundleDependencies:   bundleDeps,
+		BundledDependencies:  bundledDeps,
+	}
+	return nil
+}
+
+func decodeNPMStringList(raw json.RawMessage, field string) ([]string, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil, nil
+	}
+
+	switch trimmed[0] {
+	case '[':
+		var out []string
+		if err := json.Unmarshal(raw, &out); err != nil {
+			return nil, fmt.Errorf("npm: decode %s: %w", field, err)
+		}
+		return out, nil
+	case '"':
+		var one string
+		if err := json.Unmarshal(raw, &one); err != nil {
+			return nil, fmt.Errorf("npm: decode %s: %w", field, err)
+		}
+		if strings.TrimSpace(one) == "" {
+			return nil, nil
+		}
+		return []string{one}, nil
+	case 't', 'f':
+		var enabled bool
+		if err := json.Unmarshal(raw, &enabled); err != nil {
+			return nil, fmt.Errorf("npm: decode %s: %w", field, err)
+		}
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("npm: decode %s: unsupported JSON value %s", field, trimmed)
+	}
 }
 
 type npmRegistryClient interface {
@@ -140,15 +212,14 @@ func (c *NPMLifecycleScriptChecker) Check(tool model.UnifiedTool) ([]model.Issue
 		return nil, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), npmQueryTimeout)
-	defer cancel()
-
 	var issues []model.Issue
 	for _, dep := range deps {
 		if !strings.EqualFold(dep.Ecosystem, "npm") {
 			continue
 		}
-		meta, err := c.client.FetchVersion(ctx, dep.Name, dep.Version)
+		queryCtx, cancel := context.WithTimeout(context.Background(), npmQueryTimeout)
+		meta, err := c.client.FetchVersion(queryCtx, dep.Name, dep.Version)
+		cancel()
 		if err != nil {
 			continue
 		}
