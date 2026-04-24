@@ -58,5 +58,15 @@
     "severity": "CRITICAL",
     "reason": "Confirmed npm supply-chain compromise: attacker reportedly hijacked the maintainer npm account and published malicious axios builds that introduced the plain-crypto-js dependency outside the normal GitHub Actions release flow.",
     "link": "https://github.com/axios/axios"
+  },
+  {
+    "id": "BITWARDEN-CLI-COMPROMISE-2026-04-22",
+    "component": "@bitwarden/cli",
+    "ecosystem": "npm",
+    "affected_versions": ["2026.4.0"],
+    "action": "BLOCK",
+    "severity": "CRITICAL",
+    "reason": "Confirmed npm supply-chain compromise: attackers hijacked Bitwarden's GitHub Actions, stole release secrets, and pushed a tampered @bitwarden/cli@2026.4.0 build to npm containing malicious code. Remove immediately and rotate any credentials that passed through the CLI.",
+    "link": "https://thehackernews.com/2026/04/bitwarden-cli-supply-chain-attack.html"
   }
 ]
