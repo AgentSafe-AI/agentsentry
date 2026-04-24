@@ -16,9 +16,11 @@ var signatures = []SDKSignature{
 		FileExtensions: []string{".go"},
 		ImportPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`"github\.com/modelcontextprotocol/go-sdk(?:/mcp)?"`),
+			regexp.MustCompile(`"github\.com/mark3labs/mcp-go/server"`),
 		},
 		InitPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`\bmcp\.NewServer\s*\(`),
+			regexp.MustCompile(`\bserver\.NewMCPServer\s*\(`),
 		},
 		ToolDefPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`\b(?:server\.)?AddTool\s*\(`),
@@ -40,7 +42,7 @@ var signatures = []SDKSignature{
 	},
 	{
 		Language:       "typescript",
-		FileExtensions: []string{".ts", ".tsx", ".js", ".mjs"},
+		FileExtensions: []string{".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"},
 		ImportPatterns: []*regexp.Regexp{
 			regexp.MustCompile(`["']@modelcontextprotocol/sdk`),
 		},

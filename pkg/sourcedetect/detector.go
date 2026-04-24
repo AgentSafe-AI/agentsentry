@@ -1,7 +1,6 @@
 package sourcedetect
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,8 +10,6 @@ import (
 
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
-
-var errStopWalk = errors.New("tooltrust-stop-walk")
 
 func DetectEmbeddedMCP(root string, opts Options) (*DetectionResult, error) {
 	if strings.TrimSpace(root) == "" {
@@ -80,15 +77,12 @@ func DetectEmbeddedMCP(root string, opts Options) (*DetectionResult, error) {
 					Value: fmt.Sprintf("%s:%d", rel, ev.Line),
 				})
 			}
-			if matchCountByLanguage[sig.Language] >= opts.MaxMatchesPerLanguage {
-				return errStopWalk
-			}
 			break
 		}
 
 		return nil
 	})
-	if err != nil && !errors.Is(err, errStopWalk) {
+	if err != nil {
 		return nil, err
 	}
 
