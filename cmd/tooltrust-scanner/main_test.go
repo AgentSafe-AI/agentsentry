@@ -414,3 +414,48 @@ __metadata:
 	assert.Equal(t, "1.14.1", got["axios"])
 	assert.Equal(t, "2.3.4", got["@scope/sdk"])
 }
+
+func TestParsePNPMLockfile_StripsPeerDependencySuffix(t *testing.T) {
+	tmp := t.TempDir()
+	lockfile := filepath.Join(tmp, "pnpm-lock.yaml")
+	require.NoError(t, os.WriteFile(lockfile, []byte(`
+lockfileVersion: '9.0'
+packages:
+  /axios@1.14.1:
+    resolution: {integrity: sha512-abc}
+  /@scope/sdk@2.3.4(axios@1.14.1):
+    resolution: {integrity: sha512-def}
+`), 0o644))
+
+	deps, err := parsePNPMLockfile(lockfile)
+	require.NoError(t, err)
+	require.Len(t, deps, 2)
+
+	got := map[string]string{}
+	for _, dep := range deps {
+		got[dep.Name] = dep.Version
+	}
+	assert.Equal(t, "1.14.1", got["axios"])
+	assert.Equal(t, "2.3.4", got["@scope/sdk"])
+}
+
+func TestParseRequirementsFile_StripsMarkersAndInlineComments(t *testing.T) {
+	tmp := t.TempDir()
+	requirements := filepath.Join(tmp, "requirements.txt")
+	require.NoError(t, os.WriteFile(requirements, []byte(`
+django==4.2.0 # security fixture
+Flask==2.3.1 ; python_version >= "3.8"
+requests>=2.28.0
+`), 0o644))
+
+	deps, err := parseRequirementsFile(requirements)
+	require.NoError(t, err)
+	require.Len(t, deps, 2)
+
+	got := map[string]string{}
+	for _, dep := range deps {
+		got[dep.Name] = dep.Version
+	}
+	assert.Equal(t, "4.2.0", got["django"])
+	assert.Equal(t, "2.3.1", got["Flask"])
+}

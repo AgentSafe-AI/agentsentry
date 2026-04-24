@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -715,8 +717,8 @@ func osvSeverityToModel(v osvVuln) model.Severity {
 }
 
 func cvssScoreToSeverity(score string) model.Severity {
-	var f float64
-	if _, err := fmt.Sscanf(score, "%f", &f); err != nil {
+	f, ok := parseCVSSScore(score)
+	if !ok {
 		return model.SeverityHigh
 	}
 	switch {
@@ -729,4 +731,111 @@ func cvssScoreToSeverity(score string) model.Severity {
 	default:
 		return model.SeverityLow
 	}
+}
+
+func parseCVSSScore(score string) (float64, bool) {
+	score = strings.TrimSpace(score)
+	if score == "" {
+		return 0, false
+	}
+	if f, err := strconv.ParseFloat(score, 64); err == nil {
+		return f, true
+	}
+	if strings.HasPrefix(score, "CVSS:3.") {
+		return cvssV3BaseScore(score)
+	}
+	return 0, false
+}
+
+func cvssV3BaseScore(vector string) (float64, bool) {
+	metrics := parseCVSSVector(vector)
+	scope := metrics["S"]
+	av, ok := mapMetric(metrics["AV"], map[string]float64{"N": 0.85, "A": 0.62, "L": 0.55, "P": 0.2})
+	if !ok {
+		return 0, false
+	}
+	ac, ok := mapMetric(metrics["AC"], map[string]float64{"L": 0.77, "H": 0.44})
+	if !ok {
+		return 0, false
+	}
+	pr, ok := cvssPrivilegeRequired(metrics["PR"], scope)
+	if !ok {
+		return 0, false
+	}
+	ui, ok := mapMetric(metrics["UI"], map[string]float64{"N": 0.85, "R": 0.62})
+	if !ok {
+		return 0, false
+	}
+	conf, ok := mapMetric(metrics["C"], map[string]float64{"H": 0.56, "L": 0.22, "N": 0})
+	if !ok {
+		return 0, false
+	}
+	integrity, ok := mapMetric(metrics["I"], map[string]float64{"H": 0.56, "L": 0.22, "N": 0})
+	if !ok {
+		return 0, false
+	}
+	avail, ok := mapMetric(metrics["A"], map[string]float64{"H": 0.56, "L": 0.22, "N": 0})
+	if !ok {
+		return 0, false
+	}
+
+	impactSubScore := 1 - ((1 - conf) * (1 - integrity) * (1 - avail))
+	var impact float64
+	switch scope {
+	case "U":
+		impact = 6.42 * impactSubScore
+	case "C":
+		impact = 7.52*(impactSubScore-0.029) - 3.25*math.Pow(impactSubScore-0.02, 15)
+	default:
+		return 0, false
+	}
+	if impact <= 0 {
+		return 0, true
+	}
+
+	exploitability := 8.22 * av * ac * pr * ui
+	if scope == "C" {
+		return roundUp1(math.Min(1.08*(impact+exploitability), 10)), true
+	}
+	return roundUp1(math.Min(impact+exploitability, 10)), true
+}
+
+func parseCVSSVector(vector string) map[string]string {
+	out := map[string]string{}
+	for _, part := range strings.Split(vector, "/") {
+		key, value, ok := strings.Cut(part, ":")
+		if !ok || key == "CVSS" {
+			continue
+		}
+		out[key] = value
+	}
+	return out
+}
+
+func mapMetric(value string, weights map[string]float64) (float64, bool) {
+	f, ok := weights[value]
+	return f, ok
+}
+
+func cvssPrivilegeRequired(value, scope string) (float64, bool) {
+	switch value {
+	case "N":
+		return 0.85, true
+	case "L":
+		if scope == "C" {
+			return 0.68, true
+		}
+		return 0.62, scope == "U"
+	case "H":
+		if scope == "C" {
+			return 0.5, true
+		}
+		return 0.27, scope == "U"
+	default:
+		return 0, false
+	}
+}
+
+func roundUp1(f float64) float64 {
+	return math.Ceil(f*10) / 10
 }

@@ -86,6 +86,25 @@ func TestSupplyChainChecker_CVEFound_CriticalScore(t *testing.T) {
 	assert.Contains(t, issues[0].Description, "lodash@4.17.15")
 }
 
+func TestSupplyChainChecker_CVEFound_CriticalCVSSVector(t *testing.T) {
+	checker := analyzer.NewSupplyChainCheckerWithMock([]analyzer.MockVuln{
+		{ID: "CVE-2024-1234", Summary: "Remote code execution", CVSSScore: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"},
+	}, nil)
+
+	tool := model.UnifiedTool{
+		Name: "vuln_tool",
+		Metadata: map[string]any{
+			"dependencies": []any{
+				map[string]any{"name": "lodash", "version": "4.17.15", "ecosystem": "npm"},
+			},
+		},
+	}
+	issues, err := checker.Check(tool)
+	require.NoError(t, err)
+	require.Len(t, issues, 1)
+	assert.Equal(t, model.SeverityCritical, issues[0].Severity)
+}
+
 func TestSupplyChainChecker_CVEFound_HighScore(t *testing.T) {
 	checker := analyzer.NewSupplyChainCheckerWithMock([]analyzer.MockVuln{
 		{ID: "CVE-2023-5678", Summary: "Privilege escalation", CVSSScore: "7.5"},

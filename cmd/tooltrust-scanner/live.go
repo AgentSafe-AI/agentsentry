@@ -445,6 +445,12 @@ func parseRequirementsFile(path string) ([]nodeDependency, error) {
 		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
 			continue
 		}
+		if i := strings.IndexByte(line, '#'); i >= 0 {
+			line = strings.TrimSpace(line[:i])
+		}
+		if i := strings.IndexByte(line, ';'); i >= 0 {
+			line = strings.TrimSpace(line[:i])
+		}
 		if i := strings.Index(line, "=="); i > 0 {
 			name := strings.TrimSpace(line[:i])
 			version := strings.TrimSpace(line[i+2:])
@@ -469,20 +475,13 @@ func parsePNPMLockfile(path string) ([]nodeDependency, error) {
 	var deps []nodeDependency
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "/") && !strings.HasPrefix(trimmed, "'/") {
+		if !strings.HasPrefix(trimmed, "/") && !strings.HasPrefix(trimmed, "'/") && !strings.HasPrefix(trimmed, "\"/") {
 			continue
 		}
-		trimmed = strings.Trim(trimmed, "'")
-		trimmed = strings.TrimSuffix(trimmed, ":")
-		trimmed = strings.TrimPrefix(trimmed, "/")
-		if trimmed == "" {
+		name, version, ok := parsePNPMLockKey(trimmed)
+		if !ok {
 			continue
 		}
-		idx := strings.LastIndex(trimmed, "@")
-		if idx <= 0 || idx == len(trimmed)-1 {
-			continue
-		}
-		name, version := trimmed[:idx], trimmed[idx+1:]
 		k := name + "@" + version
 		if seen[k] {
 			continue
@@ -491,6 +490,24 @@ func parsePNPMLockfile(path string) ([]nodeDependency, error) {
 		deps = append(deps, nodeDependency{Name: name, Version: version, Ecosystem: "npm", Source: "local_lockfile"})
 	}
 	return deps, nil
+}
+
+func parsePNPMLockKey(key string) (name, version string, ok bool) {
+	trimmed := strings.TrimSpace(key)
+	trimmed = strings.Trim(trimmed, "'\"")
+	trimmed = strings.TrimSuffix(trimmed, ":")
+	trimmed = strings.TrimPrefix(trimmed, "/")
+	if trimmed == "" {
+		return "", "", false
+	}
+	if idx := strings.Index(trimmed, "("); idx >= 0 {
+		trimmed = trimmed[:idx]
+	}
+	idx := strings.LastIndex(trimmed, "@")
+	if idx <= 0 || idx == len(trimmed)-1 {
+		return "", "", false
+	}
+	return trimmed[:idx], trimmed[idx+1:], true
 }
 
 func parseYarnLockfile(path string) ([]nodeDependency, error) {
