@@ -465,15 +465,23 @@ func parseRequirementsFile(path string) ([]nodeDependency, error) {
 func splitPythonRequirementExactPin(line string) (name, version string, ok bool) {
 	if idx := strings.Index(line, "==="); idx > 0 {
 		name = normalizePythonRequirementName(strings.TrimSpace(line[:idx]))
-		version = strings.TrimSpace(line[idx+3:])
+		version = normalizePythonRequirementVersion(line[idx+3:])
 		return name, version, name != "" && version != ""
 	}
 	if idx := strings.Index(line, "=="); idx > 0 {
 		name = normalizePythonRequirementName(strings.TrimSpace(line[:idx]))
-		version = strings.TrimSpace(line[idx+2:])
+		version = normalizePythonRequirementVersion(line[idx+2:])
 		return name, version, name != "" && version != ""
 	}
 	return "", "", false
+}
+
+func normalizePythonRequirementVersion(version string) string {
+	fields := strings.Fields(strings.TrimSpace(version))
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.TrimSuffix(fields[0], "\\")
 }
 
 func normalizePythonRequirementName(name string) string {

@@ -348,11 +348,14 @@ requests>=2.28.0
 Flask==2.3.1 ; python_requires >= "3.8"
 requests[security]==2.32.0
 urllib3===2.0.0
+certifi==2024.2.2 --hash=sha256:abc123
+idna==3.6 \
+    --hash=sha256:def456
 -r other.txt
 `)
 	deps, err := analyzer.ParseRequirementsTxtForTest(data)
 	require.NoError(t, err)
-	assert.Len(t, deps, 4, "only exact pins and no -r lines")
+	assert.Len(t, deps, 6, "only exact pins and no -r lines")
 
 	names := make(map[string]string)
 	for _, d := range deps {
@@ -363,6 +366,8 @@ urllib3===2.0.0
 	assert.Equal(t, "2.3.1", names["Flask"])
 	assert.Equal(t, "2.32.0", names["requests"])
 	assert.Equal(t, "2.0.0", names["urllib3"])
+	assert.Equal(t, "2024.2.2", names["certifi"])
+	assert.Equal(t, "3.6", names["idna"])
 }
 
 func TestParsePNPMLockYAML(t *testing.T) {

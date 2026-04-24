@@ -448,12 +448,15 @@ django==4.2.0 # security fixture
 Flask==2.3.1 ; python_version >= "3.8"
 requests[security]==2.32.0
 urllib3===2.0.0
+certifi==2024.2.2 --hash=sha256:abc123
+idna==3.6 \
+    --hash=sha256:def456
 requests>=2.28.0
 `), 0o644))
 
 	deps, err := parseRequirementsFile(requirements)
 	require.NoError(t, err)
-	require.Len(t, deps, 4)
+	require.Len(t, deps, 6)
 
 	got := map[string]string{}
 	for _, dep := range deps {
@@ -463,4 +466,6 @@ requests>=2.28.0
 	assert.Equal(t, "2.3.1", got["Flask"])
 	assert.Equal(t, "2.32.0", got["requests"])
 	assert.Equal(t, "2.0.0", got["urllib3"])
+	assert.Equal(t, "2024.2.2", got["certifi"])
+	assert.Equal(t, "3.6", got["idna"])
 }
