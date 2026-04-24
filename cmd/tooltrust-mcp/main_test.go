@@ -160,6 +160,30 @@ func TestRenderTextReport_IncludesBehaviorAndDestinationContext(t *testing.T) {
 	assert.Contains(t, text, "Destination: dynamic email recipient (bcc); hardcoded domain: api.postmarkapp.com")
 }
 
+func TestRenderTextReport_IncludesDependencyVisibilityForFlaggedTools(t *testing.T) {
+	result := &ScanResult{
+		Summary: ScanSummary{
+			Total:    1,
+			Allowed:  0,
+			Approval: 1,
+			Blocked:  0,
+		},
+		Policies: []model.GatewayPolicy{
+			{
+				ToolName:             "fetch_url",
+				Action:               model.ActionRequireApproval,
+				DependencyVisibility: "No dependency data",
+				DependencyNote:       "No metadata.dependencies or repo_url were exposed by this MCP server.",
+				Score:                model.RiskScore{Grade: model.GradeC},
+			},
+		},
+	}
+
+	text := renderTextReport(result)
+	assert.Contains(t, text, "Dependency visibility: No dependency data")
+	assert.Contains(t, text, "Dependency note: No metadata.dependencies or repo_url were exposed by this MCP server.")
+}
+
 func TestProcessToolsRaw_PopulatesBehaviorAndDestinationContext(t *testing.T) {
 	tools := []model.UnifiedTool{
 		{
@@ -179,6 +203,22 @@ func TestProcessToolsRaw_PopulatesBehaviorAndDestinationContext(t *testing.T) {
 	require.Len(t, result.Policies, 1)
 	assert.Equal(t, []string{"uses_network"}, result.Policies[0].Behavior)
 	assert.Equal(t, []string{"dynamic URL input (url)"}, result.Policies[0].Destinations)
+}
+
+func TestProcessToolsRaw_PopulatesDependencyVisibility(t *testing.T) {
+	tools := []model.UnifiedTool{
+		{
+			Name:        "plain_mcp",
+			Protocol:    model.ProtocolMCP,
+			Description: "Plain tool.",
+		},
+	}
+
+	result, err := processToolsRaw(context.Background(), tools)
+	require.NoError(t, err)
+	require.Len(t, result.Policies, 1)
+	assert.Equal(t, "No dependency data", result.Policies[0].DependencyVisibility)
+	assert.Equal(t, "No metadata.dependencies or repo_url were exposed by this MCP server.", result.Policies[0].DependencyNote)
 }
 
 // ── tooltrust_scan_server tests ─────────────────────────────────────────────

@@ -232,7 +232,7 @@ func runScan(ctx context.Context, opts scanOpts, allowUnsafeLiveScan bool) error
 			return fmt.Errorf("gateway evaluation failed for tool %q: %w", tools[i].Name, evalErr)
 		}
 		policy.Behavior, policy.Destinations = analyzer.SummarizeToolContext(tools[i])
-		policy.DependencyVisibility, policy.DependencyNote = dependencyVisibilityForTool(tools[i])
+		policy.DependencyVisibility, policy.DependencyNote = analyzer.DependencyVisibilityForTool(tools[i])
 		policies = append(policies, policy)
 
 		if opts.verbose {
@@ -658,85 +658,6 @@ func summarizeIssueReason(issue model.Issue) string {
 	return desc
 }
 
-func dependencyVisibilityForTool(tool model.UnifiedTool) (visibility, note string) {
-	if tool.Metadata == nil {
-		return "No dependency data", "No metadata.dependencies or repo_url were exposed by this MCP server."
-	}
-
-	sources := dependencySourcesFromMetadata(tool.Metadata)
-	if len(sources) == 0 {
-		note = metadataString(tool.Metadata, "dependency_visibility_note")
-		if note == "" {
-			note = "No metadata.dependencies or repo_url were exposed by this MCP server."
-		}
-		return "No dependency data", note
-	}
-	return formatDependencyVisibility(sources), visibilityNote(tool.Metadata, sources)
-}
-
-func dependencySourcesFromMetadata(meta map[string]any) []string {
-	seen := map[string]bool{}
-	var sources []string
-
-	if raw, ok := meta["dependencies"]; ok {
-		b, err := json.Marshal(raw)
-		if err == nil {
-			var deps []struct {
-				Source string `json:"source"`
-			}
-			if err := json.Unmarshal(b, &deps); err == nil {
-				for _, dep := range deps {
-					source := dep.Source
-					if source == "" {
-						source = "metadata"
-					}
-					if !seen[source] {
-						seen[source] = true
-						sources = append(sources, source)
-					}
-				}
-			}
-		}
-	}
-
-	if repoURL, ok := meta["repo_url"].(string); ok && strings.TrimSpace(repoURL) != "" {
-		if !seen["repo_url"] {
-			sources = append(sources, "repo_url")
-		}
-	}
-
-	return sources
-}
-
-func visibilityNote(meta map[string]any, sources []string) string {
-	if note := metadataString(meta, "dependency_visibility_note"); note != "" {
-		return note
-	}
-	if len(sources) == 1 && sources[0] == "repo_url" {
-		return "repo_url is available, so ToolTrust can try to inspect remote lockfiles for dependency evidence."
-	}
-	return ""
-}
-
-func formatDependencyVisibility(sources []string) string {
-	labels := make([]string, 0, len(sources))
-	for _, source := range sources {
-		switch source {
-		case "metadata":
-			labels = append(labels, "Declared by MCP metadata")
-		case "local_lockfile":
-			labels = append(labels, "Verified from local lockfile")
-		case "lockfile":
-			labels = append(labels, "Verified from remote lockfile")
-		case "repo_url":
-			labels = append(labels, "Repo URL available")
-		default:
-			labels = append(labels, source)
-		}
-	}
-	return strings.Join(labels, " + ")
-}
-
 // formatToolLabel returns a coloured "Tool: <name>  [ACTION]" label.
 func formatToolLabel(policy model.GatewayPolicy) string {
 	name := fmt.Sprintf("Tool: %s", policy.ToolName)
@@ -895,13 +816,6 @@ func avgRiskScore(policies []model.GatewayPolicy) (int, model.Grade) {
 	}
 	avg := total / len(policies)
 	return avg, model.GradeFromScore(avg)
-}
-
-func metadataString(meta map[string]any, key string) string {
-	if value, ok := meta[key].(string); ok {
-		return value
-	}
-	return ""
 }
 
 // printScanPtree writes a tree view of the scan process to w (stderr) during verbose scan.

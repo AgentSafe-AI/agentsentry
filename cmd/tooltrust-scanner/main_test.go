@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/analyzer"
 	"github.com/AgentSafe-AI/tooltrust-scanner/pkg/model"
 )
 
@@ -230,7 +231,7 @@ func TestToolReasonLabel_ForBlock(t *testing.T) {
 }
 
 func TestDependencyVisibilityForTool_None(t *testing.T) {
-	visibility, note := dependencyVisibilityForTool(model.UnifiedTool{
+	visibility, note := analyzer.DependencyVisibilityForTool(model.UnifiedTool{
 		Name: "plain_tool",
 	})
 
@@ -239,7 +240,7 @@ func TestDependencyVisibilityForTool_None(t *testing.T) {
 }
 
 func TestDependencyVisibilityForTool_MetadataAndRepoURL(t *testing.T) {
-	visibility, note := dependencyVisibilityForTool(model.UnifiedTool{
+	visibility, note := analyzer.DependencyVisibilityForTool(model.UnifiedTool{
 		Name: "tool",
 		Metadata: map[string]any{
 			"repo_url": "https://github.com/example/repo",
@@ -339,7 +340,7 @@ func TestEnrichLiveToolsWithLocalNodeDependencies(t *testing.T) {
 		Name: "deploy_site",
 	}})
 	require.Len(t, tools, 1)
-	visibility, note := dependencyVisibilityForTool(tools[0])
+	visibility, note := analyzer.DependencyVisibilityForTool(tools[0])
 	assert.Equal(t, "Verified from local lockfile", visibility)
 	assert.Contains(t, note, "Local dependency artifacts scanned")
 
@@ -372,7 +373,7 @@ func TestEnrichLiveToolsWithLocalNodeDependencies_DoesNotUseCallerCWD(t *testing
 	}})
 	require.Len(t, tools, 1)
 
-	visibility, note := dependencyVisibilityForTool(tools[0])
+	visibility, note := analyzer.DependencyVisibilityForTool(tools[0])
 	assert.Equal(t, "No dependency data", visibility)
 	assert.Contains(t, note, "No metadata.dependencies or repo_url")
 	_, hasDeps := tools[0].Metadata["dependencies"]

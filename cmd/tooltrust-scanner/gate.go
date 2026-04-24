@@ -139,7 +139,7 @@ func runGate(ctx context.Context, opts gateOpts, allowUnsafeLiveScan bool) error
 			return fmt.Errorf("gateway evaluation failed for tool %q: %w", tools[i].Name, evalErr)
 		}
 		policy.Behavior, policy.Destinations = analyzer.SummarizeToolContext(tools[i])
-		policy.DependencyVisibility, policy.DependencyNote = dependencyVisibilityForTool(tools[i])
+		policy.DependencyVisibility, policy.DependencyNote = analyzer.DependencyVisibilityForTool(tools[i])
 		policies = append(policies, policy)
 	}
 

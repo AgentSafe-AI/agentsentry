@@ -700,6 +700,12 @@ func renderTextReport(result *ScanResult) string {
 		if len(p.Destinations) > 0 {
 			lines = append(lines, fmt.Sprintf("  Destination: %s", strings.Join(p.Destinations, "; ")))
 		}
+		if p.DependencyVisibility != "" {
+			lines = append(lines, fmt.Sprintf("  Dependency visibility: %s", p.DependencyVisibility))
+			if p.DependencyNote != "" {
+				lines = append(lines, fmt.Sprintf("  Dependency note: %s", p.DependencyNote))
+			}
+		}
 		for _, issue := range p.Score.Issues {
 			lines = append(lines, fmt.Sprintf("  [%s] %s: %s",
 				issue.RuleID, issue.Severity, humanizeIssue(issue)))
@@ -836,6 +842,7 @@ func processToolsRaw(ctx context.Context, tools []model.UnifiedTool) (*ScanResul
 			return nil, fmt.Errorf("policy evaluation failed for tool %q: %v", tools[i].Name, evalErr)
 		}
 		policy.Behavior, policy.Destinations = analyzer.SummarizeToolContext(tools[i])
+		policy.DependencyVisibility, policy.DependencyNote = analyzer.DependencyVisibilityForTool(tools[i])
 		policies = append(policies, policy)
 
 		switch policy.Action {
