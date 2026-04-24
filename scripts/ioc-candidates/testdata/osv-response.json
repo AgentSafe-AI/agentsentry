@@ -1,0 +1,75 @@
+[
+  {
+    "id": "GHSA-axios-2026-0001",
+    "summary": "Compromised axios release shipped with a malicious dependency.",
+    "published": "2026-04-21T18:00:00Z",
+    "aliases": ["GHSA-axios-2026-0001", "CVE-2026-10001"],
+    "severity": [
+      { "type": "CVSS_V3", "score": "9.8" }
+    ],
+    "affected": [
+      {
+        "package": { "name": "axios", "ecosystem": "npm" },
+        "versions": ["1.14.1", "0.30.4"]
+      }
+    ]
+  },
+  {
+    "id": "GHSA-bitwarden-2026-0002",
+    "summary": "Bitwarden CLI package published with a credential exfiltration routine.",
+    "published": "2026-04-21T10:30:00Z",
+    "aliases": ["GHSA-bitwarden-2026-0002"],
+    "database_specific": { "severity": "HIGH" },
+    "affected": [
+      {
+        "package": { "name": "@bitwarden/cli", "ecosystem": "npm" },
+        "versions": ["2026.4.0"]
+      }
+    ]
+  },
+  {
+    "id": "GHSA-old-2026-0003",
+    "summary": "Old advisory outside the 24 hour window.",
+    "published": "2026-04-10T08:00:00Z",
+    "aliases": ["GHSA-old-2026-0003"],
+    "severity": [
+      { "type": "CVSS_V3", "score": "8.0" }
+    ],
+    "affected": [
+      {
+        "package": { "name": "oldpkg", "ecosystem": "npm" },
+        "versions": ["1.2.3"]
+      }
+    ]
+  },
+  {
+    "id": "GHSA-medium-2026-0004",
+    "summary": "Medium severity issue that should be dropped.",
+    "published": "2026-04-21T14:00:00Z",
+    "aliases": ["GHSA-medium-2026-0004"],
+    "severity": [
+      { "type": "CVSS_V3", "score": "5.2" }
+    ],
+    "affected": [
+      {
+        "package": { "name": "mediumpkg", "ecosystem": "npm" },
+        "versions": ["4.5.6"]
+      }
+    ]
+  },
+  {
+    "id": "GHSA-range-2026-0005",
+    "summary": "Advisory with no exact versions; should not generate a candidate.",
+    "published": "2026-04-21T16:00:00Z",
+    "aliases": ["GHSA-range-2026-0005"],
+    "severity": [
+      { "type": "CVSS_V3", "score": "7.5" }
+    ],
+    "affected": [
+      {
+        "package": { "name": "rangepkg", "ecosystem": "npm" },
+        "versions": []
+      }
+    ]
+  }
+]

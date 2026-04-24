@@ -1,0 +1,69 @@
+name: IOC Candidate Monitor
+
+on:
+  schedule:
+    - cron: "15 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate-candidates:
+    name: Generate OSV blacklist candidates
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Fetch IOC candidates
+        run: |
+          go run ./scripts/ioc-candidates \
+            -since 24h \
+            -min-severity HIGH \
+            -ecosystems npm,PyPI,Go \
+            -out /tmp/candidates.json \
+            -existing pkg/analyzer/data/blacklist.json
+
+      - name: Count candidates
+        id: candidate_count
+        run: |
+          count="$(jq 'length' /tmp/candidates.json)"
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Merge candidates into blacklist
+        if: steps.candidate_count.outputs.count != '0'
+        run: |
+          jq -s '
+            (.[0] + .[1])
+            | unique_by("\(.ecosystem)|\(.component)|\(.affected_versions | join(","))")
+            | sort_by(.ecosystem, .component)
+          ' pkg/analyzer/data/blacklist.json /tmp/candidates.json > /tmp/merged-blacklist.json
+          mv /tmp/merged-blacklist.json pkg/analyzer/data/blacklist.json
+
+      - name: Create pull request
+        if: steps.candidate_count.outputs.count != '0'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.TOOLTRUST_BOT_TOKEN || github.token }}
+          branch: ioc-candidates/${{ github.run_id }}
+          title: "ioc: ${{ steps.candidate_count.outputs.count }} new blacklist candidate(s)"
+          commit-message: "data(blacklist): auto-append ${{ steps.candidate_count.outputs.count }} OSV candidate(s)"
+          body: |
+            Automated IOC blacklist candidates generated from OSV ecosystem feeds for the last 24 hours.
+
+            Review each entry carefully:
+            - Is the version pinning exact and narrow enough?
+            - Is `BLOCK` the right action, or should this be downgraded to `WARN`?
+            - Is the reason clear enough for someone triaging a finding?
+
+            Close this PR if any candidate looks incorrect. The workflow will retry on the next scheduled run.
+          labels: |
+            ioc
+            automated

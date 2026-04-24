@@ -1,0 +1,12 @@
+[
+  {
+    "id": "GHSA-bitwarden-2026-0002",
+    "component": "@bitwarden/cli",
+    "ecosystem": "npm",
+    "affected_versions": ["2026.4.0"],
+    "action": "BLOCK",
+    "severity": "HIGH",
+    "reason": "Already present in blacklist fixture.",
+    "link": "https://osv.dev/vulnerability/GHSA-bitwarden-2026-0002"
+  }
+]

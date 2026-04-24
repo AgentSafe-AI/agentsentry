@@ -1,0 +1,12 @@
+[
+  {
+    "id": "GHSA-axios-2026-0001",
+    "component": "axios",
+    "ecosystem": "npm",
+    "affected_versions": ["0.30.4", "1.14.1"],
+    "action": "BLOCK",
+    "severity": "CRITICAL",
+    "reason": "Compromised axios release shipped with a malicious dependency.",
+    "link": "https://osv.dev/vulnerability/GHSA-axios-2026-0001"
+  }
+]
