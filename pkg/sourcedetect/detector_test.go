@@ -15,6 +15,7 @@ func TestDetectEmbeddedMCP_PositiveFixtures(t *testing.T) {
 		language string
 	}{
 		{"go", "go-embedded", "go"},
+		{"go-mark3labs", "go-mark3labs", "go"},
 		{"python", "python-fastmcp", "python"},
 		{"ts", "ts-mcp-server", "typescript"},
 	}
