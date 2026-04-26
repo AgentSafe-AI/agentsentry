@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.3.9] - 2026-04-25
+
+### Added
+- **Embedded MCP source detection**: added `scan-repo` plus `AS-018` to detect
+  embedded MCP servers directly from source code when no manifest is available.
+  Phase 1 covers Go, Python, and TypeScript with same-file import/init
+  co-occurrence checks, `.tooltrust-ignore` support, and bounded file scanning.
+- **IOC candidate pipeline scaffold**: added a daily OSV-backed workflow and
+  local fetcher under `scripts/ioc-candidates/` to generate review PRs for
+  likely blacklist additions instead of relying on hand-edited updates.
+
+### Fixed
+- **Go embedded MCP detection**: source detection now recognizes
+  `github.com/mark3labs/mcp-go` plus `server.NewMCPServer(...)`, allowing
+  repos such as `nginx-ui` to surface as embedded MCP instead of being silently
+  missed.
+
 ## [0.3.8] - 2026-04-07
 
 ### Fixed
