@@ -92,7 +92,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	for _, warning := range warnings {
-		fmt.Fprintf(stderr, "warning: %s\n", warning)
+		if _, writeErr := fmt.Fprintf(stderr, "warning: %s\n", warning); writeErr != nil {
+			return fmt.Errorf("write warning output: %w", writeErr)
+		}
 	}
 	out, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
@@ -102,7 +104,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 	if err := os.WriteFile(cfg.OutPath, out, 0o644); err != nil {
 		return fmt.Errorf("write candidates file: %w", err)
 	}
-	fmt.Fprintf(stdout, "Wrote %d IOC blacklist candidate(s) to %s\n", len(entries), cfg.OutPath)
+	if _, writeErr := fmt.Fprintf(stdout, "Wrote %d IOC blacklist candidate(s) to %s\n", len(entries), cfg.OutPath); writeErr != nil {
+		return fmt.Errorf("write completion output: %w", writeErr)
+	}
 	return nil
 }
 
@@ -126,7 +130,7 @@ func parseFlags(args []string) (config, error) {
 	fs.StringVar(&feedBaseURL, "feed-base-url", defaultFeedBaseURL, "base URL for OSV ecosystem zip feeds")
 
 	if err := fs.Parse(args); err != nil {
-		return cfg, err
+		return cfg, fmt.Errorf("parse flags: %w", err)
 	}
 
 	cfg = config{
@@ -193,7 +197,7 @@ func fetchEcosystemFeed(ctx context.Context, client httpDoer, baseURL, ecosystem
 	var lastErr error
 	backoff := time.Second
 	for attempt := 0; attempt < 3; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, feedURL, http.NoBody)
 		if err != nil {
 			return nil, "", fmt.Errorf("build request for %s: %w", ecosystem, err)
 		}
@@ -202,14 +206,17 @@ func fetchEcosystemFeed(ctx context.Context, client httpDoer, baseURL, ecosystem
 			lastErr = err
 		} else {
 			body, readErr := io.ReadAll(resp.Body)
-			resp.Body.Close()
-			if readErr != nil {
+			closeErr := resp.Body.Close()
+			switch {
+			case readErr != nil:
 				lastErr = readErr
-			} else if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			case closeErr != nil:
+				lastErr = closeErr
+			case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500:
 				lastErr = fmt.Errorf("status %d", resp.StatusCode)
-			} else if resp.StatusCode != http.StatusOK {
+			case resp.StatusCode != http.StatusOK:
 				return nil, "", fmt.Errorf("unexpected status %d from %s", resp.StatusCode, feedURL)
-			} else {
+			default:
 				vulns, err := parseFeedZip(body)
 				if err != nil {
 					return nil, "", fmt.Errorf("parse %s feed: %w", ecosystem, err)
@@ -220,7 +227,7 @@ func fetchEcosystemFeed(ctx context.Context, client httpDoer, baseURL, ecosystem
 
 		select {
 		case <-ctx.Done():
-			return nil, "", ctx.Err()
+			return nil, "", fmt.Errorf("fetch %s feed: %w", ecosystem, ctx.Err())
 		case <-time.After(backoff):
 			backoff *= 2
 		}
@@ -244,9 +251,12 @@ func parseFeedZip(data []byte) ([]osvVulnerability, error) {
 			return nil, fmt.Errorf("open %s: %w", file.Name, err)
 		}
 		payload, readErr := io.ReadAll(rc)
-		rc.Close()
+		closeErr := rc.Close()
 		if readErr != nil {
 			return nil, fmt.Errorf("read %s: %w", file.Name, readErr)
+		}
+		if closeErr != nil {
+			return nil, fmt.Errorf("close %s: %w", file.Name, closeErr)
 		}
 		var vuln osvVulnerability
 		if err := json.Unmarshal(payload, &vuln); err != nil {
@@ -263,13 +273,14 @@ func parseFeedZip(data []byte) ([]osvVulnerability, error) {
 func buildCandidates(vulns []osvVulnerability, ecosystem string, existing map[string]struct{}, now time.Time, since time.Duration, minSeverity string) []blacklistEntry {
 	var out []blacklistEntry
 	seen := map[string]struct{}{}
-	for _, vuln := range vulns {
+	for i := range vulns {
+		vuln := &vulns[i]
 		published, ok := parseTime(vuln.Published)
 		if !ok || published.Before(now.Add(-since)) {
 			continue
 		}
 
-		severity, ok := classifySeverity(vuln)
+		severity, ok := classifySeverity(*vuln)
 		if !ok || severityRank(severity) < severityRank(minSeverity) {
 			continue
 		}
@@ -300,7 +311,7 @@ func buildCandidates(vulns []osvVulnerability, ecosystem string, existing map[st
 			}
 
 			entry := blacklistEntry{
-				ID:               preferredID(vuln),
+				ID:               preferredID(*vuln),
 				Component:        component,
 				Ecosystem:        ecosystem,
 				AffectedVersions: filtered,
@@ -330,7 +341,8 @@ func readExistingBlacklist(path string) (map[string]struct{}, error) {
 		return nil, fmt.Errorf("parse existing blacklist: %w", err)
 	}
 	seen := make(map[string]struct{}, len(entries))
-	for _, entry := range entries {
+	for i := range entries {
+		entry := entries[i]
 		for _, version := range entry.AffectedVersions {
 			key := strings.ToLower(entry.Ecosystem) + ":" + strings.ToLower(entry.Component) + "@" + version
 			seen[key] = struct{}{}
@@ -422,15 +434,15 @@ func preferredID(vuln osvVulnerability) string {
 	return vuln.ID
 }
 
-func truncateReason(reason string, max int) string {
+func truncateReason(reason string, maxLen int) string {
 	reason = strings.TrimSpace(strings.Join(strings.Fields(reason), " "))
-	if len(reason) <= max {
+	if len(reason) <= maxLen {
 		return reason
 	}
-	if max <= 1 {
-		return reason[:max]
+	if maxLen <= 1 {
+		return reason[:maxLen]
 	}
-	return reason[:max-1] + "…"
+	return reason[:maxLen-1] + "…"
 }
 
 func splitCSV(input string) []string {
@@ -478,7 +490,8 @@ func candidateKey(entry blacklistEntry) string {
 func dedupeCandidates(entries []blacklistEntry) []blacklistEntry {
 	seen := map[string]struct{}{}
 	var out []blacklistEntry
-	for _, entry := range entries {
+	for i := range entries {
+		entry := entries[i]
 		key := candidateKey(entry)
 		if _, exists := seen[key]; exists {
 			continue

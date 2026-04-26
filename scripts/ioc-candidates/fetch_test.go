@@ -94,7 +94,8 @@ func loadExistingBlacklist(t *testing.T, name string) map[string]struct{} {
 		t.Fatalf("parse existing blacklist fixture: %v", err)
 	}
 	seen := make(map[string]struct{})
-	for _, entry := range entries {
+	for i := range entries {
+		entry := entries[i]
 		for _, version := range entry.AffectedVersions {
 			seen[strings.ToLower(entry.Ecosystem)+":"+strings.ToLower(entry.Component)+"@"+version] = struct{}{}
 		}
