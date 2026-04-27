@@ -4,6 +4,19 @@ on:
   schedule:
     - cron: "15 10 * * *"
   workflow_dispatch:
+    inputs:
+      since:
+        description: "Published-within window (for example 24h or 720h)"
+        required: false
+        default: "24h"
+      min_severity:
+        description: "Minimum severity to include"
+        required: false
+        default: "HIGH"
+      ecosystems:
+        description: "Comma-separated OSV ecosystems"
+        required: false
+        default: "npm,PyPI,Go"
 
 permissions:
   contents: write
@@ -24,10 +37,13 @@ jobs:
 
       - name: Fetch IOC candidates
         run: |
+          SINCE="${{ github.event.inputs.since || '24h' }}"
+          MIN_SEVERITY="${{ github.event.inputs.min_severity || 'HIGH' }}"
+          ECOSYSTEMS="${{ github.event.inputs.ecosystems || 'npm,PyPI,Go' }}"
           go run ./scripts/ioc-candidates \
-            -since 24h \
-            -min-severity HIGH \
-            -ecosystems npm,PyPI,Go \
+            -since "$SINCE" \
+            -min-severity "$MIN_SEVERITY" \
+            -ecosystems "$ECOSYSTEMS" \
             -out /tmp/candidates.json \
             -existing pkg/analyzer/data/blacklist.json
 
