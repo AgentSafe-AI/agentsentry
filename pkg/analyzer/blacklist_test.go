@@ -75,7 +75,7 @@ func TestBlacklist_LiteLLM_OtherAffectedVersion_Hit(t *testing.T) {
 
 func TestBlacklist_LiteLLM_SafeVersion_NoFinding(t *testing.T) {
 	bc := analyzer.NewBlacklistChecker()
-	tool := toolWithDep("litellm", "1.83.0", "PyPI")
+	tool := toolWithDep("litellm", "1.83.1", "PyPI")
 	issues, err := bc.Check(tool)
 	require.NoError(t, err)
 	assert.Empty(t, issues)
