@@ -21,7 +21,8 @@ jobs:
 
       - name: Restore state from threat-intel-state branch
         run: |
-          git fetch origin threat-intel-state 2>/dev/null && \
+          git checkout -B threat-intel-state
+          git fetch origin threat-intel-state 2>/dev/null || true
           git checkout origin/threat-intel-state -- .github/threat-intel-state.json .github/ioc-candidates 2>/dev/null || true
 
       - name: Set up Python
@@ -45,4 +46,12 @@ jobs:
           git add .github/threat-intel-state.json .github/ioc-candidates
           git diff --staged --quiet && exit 0
           git commit -m "chore: update threat-intel feed state"
-          git push origin HEAD:refs/heads/threat-intel-state
+          for attempt in 1 2 3; do
+            git fetch origin threat-intel-state 2>/dev/null || true
+            if git push --force-with-lease=refs/heads/threat-intel-state origin HEAD:refs/heads/threat-intel-state; then
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          echo "failed to update threat-intel-state after retries" >&2
+          exit 1
