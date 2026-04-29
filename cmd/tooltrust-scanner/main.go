@@ -764,6 +764,7 @@ var ruleHint = map[string]string{
 	"AS-016": "→ Treat this package version as a likely compromise. Remove it, rotate exposed credentials, and inspect the dependency tree for the IOC package before reinstalling.",
 	"AS-017": "→ Review whether the tool description is instructing external data forwarding. If intentional, require approval and narrow the destination scope.",
 	"AS-018": "→ Run a sandboxed live scan when possible, or add a tools manifest so the embedded MCP implementation can be reviewed without executing the server.",
+	"AS-019": "→ Apply equivalent authentication middleware to every MCP HTTP route, and avoid fail-open allowlist defaults on alternate endpoints such as /mcp_message.",
 }
 
 // formatIssueLabel returns a coloured finding line with optional evidence and fix hint.

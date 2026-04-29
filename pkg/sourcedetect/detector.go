@@ -106,6 +106,17 @@ func DetectEmbeddedMCP(root string, opts Options) (*DetectionResult, error) {
 		}}
 	}
 
+	routeFindings, routeIssues, routeErr := detectRouteAuthAsymmetry(root, opts)
+	if routeErr != nil {
+		return nil, routeErr
+	}
+	if len(routeFindings) > 0 {
+		result.Detection.RouteFindings = routeFindings
+	}
+	if len(routeIssues) > 0 {
+		result.Findings = append(result.Findings, routeIssues...)
+	}
+
 	return result, nil
 }
 
