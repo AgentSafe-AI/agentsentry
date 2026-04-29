@@ -1,6 +1,6 @@
 # Security Rules
 
-ToolTrust Scanner checks every MCP tool against 16 active built-in rules.
+ToolTrust Scanner checks every MCP tool against 17 active built-in rules.
 Each rule fires independently; a tool can trigger multiple rules.
 
 ---
@@ -138,3 +138,27 @@ Flags npm dependency versions whose published registry metadata or install-time 
 **Severity:** Medium
 
 Flags tool descriptions that explicitly suggest forwarding user data, content, or conversation history to external endpoints such as remote hosts, external servers, attacker-controlled URLs, or base64-encoded sinks. This is intentionally separate from AS-001 so prompt-injection findings stay focused on instruction override language.
+
+---
+
+## ℹ️ AS-018 — Embedded MCP Server Detected
+
+**Severity:** Info
+
+Flags repositories where MCP SDK imports and server initialization are present in source code, but the scanner could not enumerate tool definitions from a manifest or live handshake.
+
+This is a presence signal, not a clean bill of health. It tells you the repo likely exposes MCP functionality, but more review is needed to understand tools, auth, and scope.
+
+---
+
+## 🚨 AS-019 — Unauthenticated MCP Route Exposure
+
+**Severity:** High / Critical
+
+Flags embedded MCP HTTP servers where one route reaches the MCP handler without the authentication middleware applied on another route serving the same handler.
+
+The initial implementation focuses on Go/Gin-style route registrations and raises severity when it sees strong exploitability signals such as:
+
+- an unauthenticated alternate MCP route like `/mcp_message`
+- fail-open IP allowlist logic
+- the same handler used by both authenticated and unauthenticated MCP endpoints

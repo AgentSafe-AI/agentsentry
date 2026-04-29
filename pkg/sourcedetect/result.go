@@ -17,9 +17,10 @@ type DetectionResult struct {
 }
 
 type DetectionSummary struct {
-	Matches      []Match `json:"matches,omitempty"`
-	FilesScanned int     `json:"files_scanned"`
-	Elapsed      string  `json:"elapsed"`
+	Matches       []Match        `json:"matches,omitempty"`
+	RouteFindings []RouteFinding `json:"route_findings,omitempty"`
+	FilesScanned  int            `json:"files_scanned"`
+	Elapsed       string         `json:"elapsed"`
 }
 
 type Match struct {
@@ -32,6 +33,20 @@ type Evidence struct {
 	Kind    string `json:"kind"`
 	Line    int    `json:"line"`
 	Snippet string `json:"snippet"`
+}
+
+type RouteFinding struct {
+	Language         string     `json:"language"`
+	File             string     `json:"file"`
+	Authenticated    RouteMatch `json:"authenticated"`
+	Unauthenticated  RouteMatch `json:"unauthenticated"`
+	FailOpenEvidence *Evidence  `json:"fail_open_evidence,omitempty"`
+}
+
+type RouteMatch struct {
+	Path    string `json:"path"`
+	Line    int    `json:"line"`
+	Handler string `json:"handler"`
 }
 
 func defaultOptions() Options {
