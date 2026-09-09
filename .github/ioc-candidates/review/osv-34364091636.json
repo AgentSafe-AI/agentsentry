@@ -1,0 +1,40 @@
+[
+  {
+    "ecosystem": "npm",
+    "ioc_type": "package_name",
+    "value": "@yongot/canary-mcp-isolation",
+    "confidence": "high",
+    "reason": "Malicious code in @yongot/canary-mcp-isolation (npm)",
+    "source": "https://osv.dev/vulnerability/MAL-2026-16061",
+    "first_seen": "2026-09-09",
+    "suggested_action": "block",
+    "promote_to": "watch_only",
+    "blacklist_id": "MAL-2026-16061",
+    "affected_versions": [
+      "1.0.1"
+    ],
+    "action": "BLOCK",
+    "severity": "CRITICAL",
+    "notes": "OSV-confirmed malicious package (MAL-2026-16061). Reported by: amazon-inspector, Amazon Inspector. Review affected versions before promoting to AS-008."
+  },
+  {
+    "ecosystem": "npm",
+    "ioc_type": "package_name",
+    "value": "@yongot/canary-mcp-test",
+    "confidence": "high",
+    "reason": "Malicious code in @yongot/canary-mcp-test (npm)",
+    "source": "https://osv.dev/vulnerability/MAL-2026-16062",
+    "first_seen": "2026-09-09",
+    "suggested_action": "block",
+    "promote_to": "watch_only",
+    "blacklist_id": "MAL-2026-16062",
+    "affected_versions": [
+      "2.0.0",
+      "3.0.0",
+      "4.0.0"
+    ],
+    "action": "BLOCK",
+    "severity": "CRITICAL",
+    "notes": "OSV-confirmed malicious package (MAL-2026-16062). Reported by: amazon-inspector, Amazon Inspector. Review affected versions before promoting to AS-008."
+  }
+]
